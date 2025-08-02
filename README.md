@@ -32,11 +32,11 @@ Generate disordered phase or point distributions with **prescribed spatial stati
 
 The package and its necessary dependencies can be downloaded by typing the following command in the terminal:
 
-`wget https://gitlab.informatik.uni-halle.de/mikromd/tostada.git`
+`git clone https://gitlab.informatik.uni-halle.de/mikromd/tostada.git`
 
 For convenient installation, we recommend a conda package manager. To avoid a bulky Anaconda download, it is sufficient to download Miniconda. If not already downloaded on your system, follow the instructions given [**here**](https://www.anaconda.com/docs/getting-started/miniconda/main). Then, `cd` to the directory containing the source files and type:
 
-`conda env activate -f environment_tostada.yml` 
+`conda env create -f environment_tostada.yml` 
 
 and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. For seamless code development and research with tostada, it is advisable to now type in the terminal:
 

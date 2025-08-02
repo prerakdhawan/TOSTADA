@@ -12,6 +12,7 @@ dependencies:
   - h5py
   - autograd
   - pyvista
+  - pymeep
   - matplotlib
   - jupyterlab
   - opencv
