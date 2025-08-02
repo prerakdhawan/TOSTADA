@@ -1,0 +1,32 @@
+name: tost
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy
+  - tmux
+  - cupy
+  - numba
+  - conda-build
+  - h5py
+  - autograd
+  - pyvista
+  - matplotlib
+  - jupyterlab
+  - opencv
+  - scipy
+  - joblib
+  - dask
+  - imagecodecs
+  - tifffile
+  - scikit-image
+  - jaxopt
+  - pip
+  - pip:
+      - jax[cuda12_pip]
+      - bayex
+
+# After the conda environment is created (test with `conda env list` and checking for tost), type the following command in the terminal:
+
+#conda-develop /home/yourname/folder/tostada/src
