@@ -1,5 +1,5 @@
 <div align="center">
-<img src="images/tostada_pic1.png" width="800">
+<img src="src/tostada/images/tostada_pic1.png" width="800">
 </div>
 
 # TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)
