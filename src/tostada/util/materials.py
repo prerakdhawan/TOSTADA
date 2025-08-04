@@ -74,7 +74,7 @@ class Material:
 
         optical_dispersion : [ N_oscillators x 3 ] ndarray
             Optimal oscillator parameters fitted to experimental curves. 
-            For each of N oscillators, the 3 parameters are the ones parameterizing a Lorentzian oscillator. 
+            For each of N oscillators, the 3 parameters are the ones parameterizing a Lorentzian oscillator ordered as [sigma_n , frequency_n, gamma_n]. 
             These parameters can be used directly to create a MEEP dispersive material using `self.meep_dispersion()`. 
             If any frequency is zero, uses Drude Dispersion model instead. To get a wavelength-dependent dispersion from this, use `self.create_dispersion()`
 
@@ -134,6 +134,7 @@ optical_dispersion_aSi = np.array([
 
 aSi_experiment = np.loadtxt(os.path.join(this_dir, 'aSi_new.txt'))
 ITO_experiment = np.loadtxt(os.path.join(this_dir, 'ITO_rear_TCO.txt'))
+ITO_front_experiment = np.loadtxt(os.path.join(this_dir, 'ITO_front_TCO.txt'))
 glass_experiment = np.loadtxt(os.path.join(this_dir, 'glass-nabs.txt'))
 AAO_experiment = np.loadtxt(os.path.join(this_dir, 'Al2O3_mikroMD.txt'))
 Au_experiment = np.loadtxt(os.path.join(this_dir, 'Au_opticalConstants.txt'),skiprows=1)
@@ -157,6 +158,13 @@ optical_dispersion_ITO = np.array([
     [0.06764048809876368,3.2201108251261896,0.4499640219854816],
     [1.9818998552188003,4.545912258900352,0]
 ]) #eps=1.3
+
+optical_dispersion_ITO_front = np.array([
+    [1.13211,5.045,0],
+    [0.165840,3.236105,0.477245],
+    [1.2765327,1,0.080605],
+    [1.12228,4.240183,0.1243208]
+]) #eps=1.5
 
 optical_dispersion_AAO = np.array([
     [0.9,6.2106400,0],
@@ -195,12 +203,20 @@ Au = Material(
                 optical_measurements=Au_experiment
                 )
 
-ITO = Material(
+ITO_rear = Material(
                 name='Indium Tin Oxide (ITO)',
                 Description = 'Rear measurement of the substrate. Unreliable (as of 23.07.25)',
                 refractive_index=np.sqrt(1.3), #only for eps_inf. Not to be confused with wavelength-independent refractive index of this media.
                 optical_dispersions=optical_dispersion_ITO,
                 optical_measurements=ITO_experiment
+                )
+
+ITO_front = Material(
+                name='Indium Tin Oxide (ITO)',
+                Description = 'Rear measurement of the substrate. Unreliable (as of 23.07.25)',
+                refractive_index=np.sqrt(1.5), #only for eps_inf. Not to be confused with wavelength-independent refractive index of this media.
+                optical_dispersions=optical_dispersion_ITO_front,
+                optical_measurements=ITO_front_experiment
                 )
 
 aSi = Material(
