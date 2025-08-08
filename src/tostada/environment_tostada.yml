@@ -12,7 +12,9 @@ dependencies:
   - h5py
   - autograd
   - pyvista
-  - pymeep
+  - mpi4py
+  - mpich
+  - pymeep=*=mpi_mpich_*
   - matplotlib
   - jupyterlab
   - opencv
