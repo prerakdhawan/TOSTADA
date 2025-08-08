@@ -21,6 +21,7 @@ dependencies:
   - scipy
   - joblib
   - dask
+  - nlopt
   - imagecodecs
   - tifffile
   - scikit-image

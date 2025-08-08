@@ -142,6 +142,10 @@ Au_experiment = np.loadtxt(os.path.join(this_dir, 'Au_opticalConstants.txt'),ski
 aSi_experiment[:,0] = aSi_experiment[:,0]/1e3
 ITO_experiment_ = (ITO_experiment[:,1] + 1j*ITO_experiment[:,2])**0.5
 ITO_experiment = np.c_[ITO_experiment[:,0]/1e3, np.real(ITO_experiment_), np.imag(ITO_experiment_)]
+
+ITO_front_experiment_ = (ITO_front_experiment[:,1] + 1j*ITO_front_experiment[:,2])**0.5
+ITO_front_experiment = np.c_[ITO_front_experiment[:,0]/1e3, np.real(ITO_front_experiment_), np.imag(ITO_front_experiment_)]
+
 glass_experiment[:,0] = glass_experiment[:,0]/1e3
 AAO_experiment[:,0] = AAO_experiment[:,0]/1e3
 Au_experiment[:,0] = Au_experiment[:,0]/1e3
@@ -160,10 +164,10 @@ optical_dispersion_ITO = np.array([
 ]) #eps=1.3
 
 optical_dispersion_ITO_front = np.array([
-    [1.13211,5.045,0],
-    [0.165840,3.236105,0.477245],
-    [1.2765327,1,0.080605],
-    [1.12228,4.240183,0.1243208]
+    [1.1321157398841646,5.0450429630551366,0],
+    [0.16584046951567935,3.2361052798737746,0.4722457501391654],
+    [1.2765327576595424,0,0.08060518724823981],
+    [1.1222838868286997,4.24018295616936,0.12432088540797179]
 ]) #eps=1.5
 
 optical_dispersion_AAO = np.array([
