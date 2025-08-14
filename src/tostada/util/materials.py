@@ -178,7 +178,9 @@ optical_dispersion_glass = np.array([
     [0.645,6.36885882,0],
 ]) #eps=1.6
 
-
+optical_dispersion_melanin = np.array([
+    [1.4820737491108649,4.187939821969296,3.392920866604192],
+]) #eps=1.5
 
 AAO = Material(name='Anodized Aluminium Oxide (Al2O3)',
                refractive_index=np.sqrt(1.44), #only for eps_inf. Not to be confused with wavelength-independent refractive index of this media.
@@ -230,3 +232,10 @@ aSi = Material(
                 refractive_index=np.sqrt(1.15), #only for eps_inf. Not to be confused with wavelength-independent refractive index of this media.
                 optical_dispersions=optical_dispersion_aSi,
                 )
+
+Melanin = Material(
+                    name='Melanin',
+                    Description='Melanin dispersion fitted to DOI: 10.1126/sciadv.1701151',
+                    refractive_index=np.sqrt(1.5),
+                    optical_dispersions=optical_dispersion_melanin
+                    )
