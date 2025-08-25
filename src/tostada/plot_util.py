@@ -182,10 +182,17 @@ class Visualize:
         return ax
     
     def _plot_ACF(self,ax, dr, Rmax,vmax,cmap):
-        # TODO : add plotting for 3D using pyvista or 2D slices
         #if not hasattr(self.distribution, 'Sq_averaged'):
         ACF_ = self.distribution.Autocovariance()
-        cax = ax[0].pcolormesh(self.distribution.ACF[0],self.distribution.ACF[1],self.distribution.ACF[2],vmax=vmax,cmap=cmap)
+        
+        if (self.distribution.ndim==2):
+            cax = ax[0].pcolormesh(self.distribution.ACF[0],self.distribution.ACF[1],self.distribution.ACF[2],vmax=vmax,cmap=cmap)
+        else:
+            print ('3D data. Plotting for ry=0 slice')
+            cax = ax[0].pcolormesh(self.distribution.ACF[0][:,:,self.distribution.ACF[2].shape[2]//2],
+                                   self.distribution.ACF[1][:,:,self.distribution.ACF[2].shape[2]//2],
+                                   self.distribution.ACF[3][:,:,self.distribution.ACF[3].shape[2]//2],
+                                   vmax=vmax,cmap=cmap)
         ax[0].figure.colorbar(cax,ax=ax[0])
         ax[0].set_title('ACF $(\mathbf{r})$')
         ax[0].set_xlabel('$x_{x}$ ($\mu$m)',fontsize=15)
@@ -199,7 +206,7 @@ class Visualize:
         ax[1].set_ylabel('ACF $(|\mathbf{r}|)$',fontsize=14)
         return ax#self.fig, self.ax
     
-    def plot_principal_ACF(self,ax,fontsize=13):
+    def plot_principal_ACF(self,ax=None,fontsize=13):
         """
         Plots the principal auto-correlation function values (along each perpendicular axes). 
         """
