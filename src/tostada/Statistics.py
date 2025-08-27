@@ -37,7 +37,7 @@ def angular_average(data,dkx):
     data_avg[:,1]=S_ks[:-1]
     return data_avg
 
-def fwhm_and_H(array):
+def fwhm_and_H(array,pad=2,roi=20):
     """
     Computes Full-width at Half Maximum (FWHM) and Hyperuniformity index H of the reciprocal data from a 1D SpectralDensity. Useful only for HuD type process.
     H is simply the smallest X(q) / largest X(q) and describes how strongly the structure is hyperuniform. 
@@ -47,6 +47,12 @@ def fwhm_and_H(array):
     ----------
     array : 2xN array
         1D spectral density. Could be passed from angular_average() or separately. 
+    
+    pad : int
+        M pixels to be ignored from q=0. Default : 2
+    
+    roi : int
+        M pixels around the central peak that need to be considered for FWHM evaluation.
 
     Returns
     -------
@@ -56,13 +62,19 @@ def fwhm_and_H(array):
         Hyperuniformity index
     """
     array = array[(np.isnan(array)==False)[:,0]]
-    max_value = np.max(array[:,1])
+    pad = pad # M pixels away from zeroth peak (since X(0)=N)
+    max_value = np.max(array[pad:,1])
+    max_ind = np.where(array==max_value)[0]
+    min_ind = np.where(array==np.min(array[pad:max_ind[0],1] ) )[0]
+    #print (min_ind,max_ind)
+    #print (array[min_ind],array[max_ind])
     half_max = max_value / 2
-    indices = np.where(array[:,1] >= half_max)[0]
+    indices = np.where(array[max_ind[0]-max(0,roi):max_ind[0]+roi,1] >= half_max)[0]
+    #print (array[max_ind[0]-max(0,roi):max_ind[0]+roi,:][indices])
     if len(indices) > 1:
-        fwhm = array[:,0][indices[-1]] - array[:,0][indices[0]]
-    Xqmin = array[:,1][0]
-    H = Xqmin/max_value
+        fwhm = array[max_ind[0]-max(0,roi):max_ind[0]+roi,0][indices[-1]] - array[max_ind[0]-max(0,roi):max_ind[0]+roi,0][indices[0]]
+    
+    H = array[min_ind,1]/array[max_ind,1] #Xqmin/max_value
     return fwhm,H
 
 def dmean_from_qpeak(array,factor=np.sqrt(3)/2):
