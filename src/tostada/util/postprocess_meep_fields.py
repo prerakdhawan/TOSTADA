@@ -123,27 +123,34 @@ class Postprocess_fields:
         return E_plus,E_minus
     
 
-    def backscattered_efficiencies(self,n_in,n_out,theta_in = 0,pol=0,helicity=False,theta_range=[0,0.1]):
+    def backscattered_efficiencies(self,n_in,n_out,theta_in = 0,pol=0,helicity=False,theta_range=[0,0.1],theta_bins=60):
         """
         Returns the back-scattered diffraction efficiencies in specular,diffused,helicity decomposed components for N wavelengths.
-        Inputs:
-            n_in : float or nd.array
-                Refractive index of the source medium. Can be constant or a dispersive media
-            n_out : float or nd.array
-                Refractive index of the detector medium. Can be constant or a dispersive media
-            theta_in : float
-                Angle of incidence
-            pol : int
-                Polarization of the source. If helicity=True, these are left- and right-handed modes. If helicity=False, these are TE and TM modes.
-            theta_range   : list : 
-                Minimum and maximum angle range of angle for which efficiency needs to be summed.
         
-        Returns:
-            spec : array of size N x 1 : specular reflectance
-            diff : array of size N x 1 : diffused reflectance
-            refl : array of size N x 1 : total reflectance (sum of specular and diffused [also equals sum of both helicity components])
-            Rp   : array of size N x 1 : Reflected power in positive helicity component
-            Rm   : array of size N x 1 : Reflected power in negative helicity component
+        Parameters
+        ----------
+
+        n_in : float or nd.array
+            Refractive index of the source medium. Can be constant or a dispersive media
+        n_out : float or nd.array
+            Refractive index of the detector medium. Can be constant or a dispersive media
+        theta_in : float
+            Angle of incidence
+        pol : int
+            Polarization of the source. If helicity=True, these are left- and right-handed modes. If helicity=False, these are TE and TM modes.
+        theta_range   : list 
+            Minimum and maximum angle range of angle for which efficiency needs to be summed.
+        theta_bins : int
+            Number of bins for theta needed for computing ARS.
+        
+        Returns
+        -------
+
+        spec : array of size N x 1 : specular reflectance
+        diff : array of size N x 1 : diffused reflectance
+        refl : array of size N x 1 : total reflectance (sum of specular and diffused [also equals sum of both helicity components])
+        Rp   : array of size N x 1 : Reflected power in positive helicity component
+        Rm   : array of size N x 1 : Reflected power in negative helicity component
         """
         ex_src = np.asarray(self.source['ex']) 
         ey_src = np.asarray(self.source['ey'])
@@ -256,7 +263,7 @@ class Postprocess_fields:
             R_smallangle[i] = np.sum(r_kspace_*theta_smallangle) 
             theta_flat = theta_.flatten()
             Rk_flat = r_kspace_.flatten()
-            theta_bins = np.linspace(0, np.pi/2, 60)
+            theta_bins = np.linspace(0, np.pi/2, theta_bins)
             R_theta, _, _ = binned_statistic(theta_flat, Rk_flat, statistic='mean', bins=theta_bins)
             ARS_fdtd.append(np.c_[theta_bins[:-1],np.nan_to_num(R_theta)])
             #ARS_fdtd.append(kz_ratio)
