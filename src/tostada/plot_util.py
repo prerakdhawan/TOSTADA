@@ -250,12 +250,13 @@ class Visualize:
             ax.imshow([[np.float32(color_array)]])
 
     @staticmethod
-    def plot_polar(I_array, wvl_0,wvl_f,ax=None,vmax=None):
+    def plot_polar(I_array, wvl_0,wvl_f,ax=None,vmax=None,cmap=None):
         """
         Plot polar scattering data I(\theta,\lambda). Can be used for plotting:
             i) Angular-averaged Structure Factor as a function of wavelength and angle.
             ii) Angular-averaged form-factor (single object scattering) as a function of wavelength and angle.
-            ii) Colors (R,G,B) values as a function of wavelength and angle (irridescence)
+            iii) Angle-resolved scattering from simulations or experiments
+            iv) Colors (R,G,B) values as a function of wavelength and angle (irridescence)
         
         Parameters
         ----------
@@ -276,7 +277,7 @@ class Visualize:
         """
         if ax is None:
             fig,ax=plt.subplots(figsize=(7,7),subplot_kw={'projection': 'polar'})
-        _img = ax.imshow(I_array,origin='lower',extent=[0,np.pi/2,wvl_0,wvl_f],vmax=vmax)
+        _img = ax.imshow(I_array,origin='lower',extent=[0,np.pi/2,wvl_0,wvl_f],vmax=vmax,cmap=cmap)
         fig.colorbar(_img,ax=ax)
         ax.set_xlim(0,np.pi/2)
         ax.set_theta_zero_location('N')  # Set 0° (North) at the top
