@@ -69,10 +69,10 @@ def fwhm_and_H(array,pad=2,roi=20):
     #print (min_ind,max_ind)
     #print (array[min_ind],array[max_ind])
     half_max = max_value / 2
-    indices = np.where(array[max_ind[0]-max(0,roi):max_ind[0]+roi,1] >= half_max)[0]
+    indices = np.where(array[max(0,max_ind[0]-roi):max_ind[0]+roi,1] >= half_max)[0]
     #print (array[max_ind[0]-max(0,roi):max_ind[0]+roi,:][indices])
     if len(indices) > 1:
-        fwhm = array[max_ind[0]-max(0,roi):max_ind[0]+roi,0][indices[-1]] - array[max_ind[0]-max(0,roi):max_ind[0]+roi,0][indices[0]]
+        fwhm = array[max(0,max_ind[0]-roi):max_ind[0]+roi,0][indices[-1]] - array[max(0,max_ind[0]-roi):max_ind[0]+roi,0][indices[0]]
     
     H = array[min_ind,1]/array[max_ind,1] #Xqmin/max_value
     return fwhm,H

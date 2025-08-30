@@ -141,15 +141,15 @@ class PointDistribution:
         self.G2r_averaged = stats.angular_average(self.G2r,dr)
         return self.G2r,self.G2r_averaged
     
-    def Hyperuniformity_data(self,kmax=80,dkx=None):
+    def Hyperuniformity_data(self,kmax=80,dkx=None,pad=1,roi=10):
         """
         Spectral width (FWHM) and Hyperuniformity index of the point distribution. See Statistics.py for further details. 
-        Note: FWHM is not meaningfull as a measure of spectral width here since S(q) -> 1 for q>>0
+        Note: FWHM may not always be meaningfull for point-distributions as a measure of spectral width here since S(q) -> 1 for q>>0
         """
         if not hasattr(self, 'Sq_averaged'):
             dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
             Sq = self.ReciprocalSpace(kmax,dkx)
-        Hdata = stats.fwhm_and_H(self.Sq_averaged)
+        Hdata = stats.fwhm_and_H(self.Sq_averaged,pad=pad,roi=roi)
         print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
         print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
         return Hdata

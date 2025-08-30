@@ -249,8 +249,10 @@ class Postprocess_fields:
 
             ) / p_denom #np.max(np.abs(E_inc[i]  )) ** 2
 
-            r_kspace_ = zoom(r_kspace,2,order=1)
-            theta_ = zoom(theta,2,order=1)
+            #r_kspace_ = zoom(r_kspace,2,order=1)
+            r_kspace_ = r_kspace
+            #theta_ = zoom(theta,2,order=1)
+            theta_ = theta
             theta_smallangle = self.theta_mask(theta_,theta_range)
 
             rk_space.append(r_kspace)
@@ -263,9 +265,9 @@ class Postprocess_fields:
             R_smallangle[i] = np.sum(r_kspace_*theta_smallangle) 
             theta_flat = theta_.flatten()
             Rk_flat = r_kspace_.flatten()
-            theta_bins = np.linspace(0, np.pi/2, theta_bins)
-            R_theta, _, _ = binned_statistic(theta_flat, Rk_flat, statistic='mean', bins=theta_bins)
-            ARS_fdtd.append(np.c_[theta_bins[:-1],np.nan_to_num(R_theta)])
+            theta_bins_ = np.linspace(0, np.pi/2, theta_bins)
+            R_theta, _, _ = binned_statistic(theta_flat, Rk_flat, statistic='sum', bins=theta_bins_)
+            ARS_fdtd.append(np.c_[theta_bins_[:-1],np.nan_to_num(R_theta)])
             #ARS_fdtd.append(kz_ratio)
             #ARS_fdtd.append(Rplus)
         return spec, diff, refl, Rp, Rm,R_smallangle,np.asarray(rk_space),np.asarray(ARS_fdtd),np.asarray(theta_array)

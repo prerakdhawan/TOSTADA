@@ -282,3 +282,4 @@ class Visualize:
         ax.set_xlim(0,np.pi/2)
         ax.set_theta_zero_location('N')  # Set 0° (North) at the top
         ax.set_theta_direction(-1) 
+        return ax
