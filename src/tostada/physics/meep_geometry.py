@@ -117,7 +117,7 @@ class Meep_geometry:
             
         """
         Lx,Ly = self.distribution.Lx,self.distribution.Ly
-        Lz = 0 if self.distribution.Lz is None else Lz
+        Lz = 0 if self.distribution.Lz is None else self.distribution.Lz
         x0,y0,z0 = center[0], center[1], center[2]
         Weights = self.distribution.image
         Weights = Weights/np.max(Weights) #ensures max = 1
