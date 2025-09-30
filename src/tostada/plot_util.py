@@ -97,12 +97,12 @@ class Visualize:
     def _plot_phasedistribution(self,ax,cmap):
         "Check for 3D"
         if (self.distribution.ndim==2):
-            cax = ax.imshow(self.distribution.image/np.max(self.distribution.image),
+            cax = ax.imshow(self.distribution.image.T/np.max(self.distribution.image), origin='lower',
                             extent=[0,self.distribution.Lx,0,self.distribution.Ly],cmap = cmap)
         else:
             print ('3D Data. Plotting for y={y0} slice'.format(y0=self.distribution.Ly//2))
-            cax = ax.imshow(self.distribution.image[:,self.distribution.BoxSize[1]//2,:]/np.max(self.distribution.image),
-                            aspect='auto',
+            cax = ax.imshow(self.distribution.image[:,self.distribution.BoxSize[1]//2,:].T/np.max(self.distribution.image),
+                            aspect='auto', origin='lower',
                             extent=[0,self.distribution.Lx,0,self.distribution.Lz], cmap=cmap)
         ax.figure.colorbar(cax,ax=ax)
         ax.set_title('Phase Distribution')

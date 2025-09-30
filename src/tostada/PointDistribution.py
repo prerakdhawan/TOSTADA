@@ -146,9 +146,9 @@ class PointDistribution:
         Spectral width (FWHM) and Hyperuniformity index of the point distribution. See Statistics.py for further details. 
         Note: FWHM may not always be meaningfull for point-distributions as a measure of spectral width here since S(q) -> 1 for q>>0
         """
-        if not hasattr(self, 'Sq_averaged'):
-            dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
-            Sq = self.ReciprocalSpace(kmax,dkx)
+        #if not hasattr(self, 'Sq_averaged'):
+        dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
+        Sq = self.ReciprocalSpace(kmax,dkx)
         Hdata = stats.fwhm_and_H(self.Sq_averaged,pad=pad,roi=roi)
         print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
         print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
@@ -712,7 +712,8 @@ class PointDistribution:
                         ]
         return PhaseDistribution(psi,dx)
     
-    def Phaseobject_voronoi(self,resolution,rad=1,mode='periodic'):
+    def Phaseobject_voronoi(self,resolution,
+                            rad=1, boundary_mask = None):
         """
         Creates a "2D" two-phase media from the point-pattern through Voronoi tessellation. Currently only implemented in 2D and with periodic boundaries.
         It finds the finite vertices from the Voronoi cells and dilates them using given radii to form a porous microstructure.
@@ -722,10 +723,15 @@ class PointDistribution:
         ----------
         resolution : float
             Resolution of each pixel in microns.
+        
         rad : int, optional
             Radius of the footprint used for dilating the network. If not provided, the result phase distribution is simply a one-pixel network.
             The radius of the footprint can be tuned to obtain a given volume fraction.
         
+        boundary_mask : int, optional
+            Treatment of the boundary with a mask of M pixels on each edge. 
+            If unspecified, assumes no masking. In such a case, phase is periodic only if underlying point-distribution is periodic.
+
         Returns
         -------
         PhaseDistribution object
@@ -761,16 +767,146 @@ class PointDistribution:
 
         clipped_phase = psi[int(padding/resolution):-int(padding/resolution),
                                     int(padding/resolution):-int(padding/resolution)]
-        if (mode!='periodic'):
-            print ('Masking boundaries by {b} microns'.format(b=4*resolution))
-            clipped_phase[:4,:] = 1
-            clipped_phase[-4:,:] = 1
-            clipped_phase[:,:4] = 1
-            clipped_phase[:,-4:] = 1
+        if (boundary_mask is not None):
+            print ('Masking boundaries by {b} microns'.format(b=boundary_mask*resolution))
+            clipped_phase[:boundary_mask,:] = 1
+            clipped_phase[-boundary_mask:,:] = 1
+            clipped_phase[:,:boundary_mask] = 1
+            clipped_phase[:,-boundary_mask:] = 1
 
         Phase = PhaseDistribution(clipped_phase, resolution=resolution)
         print ('Volume fraction of generated phase = {v}'.format(v=Phase.volumefraction))
         return Phase 
+
+    def Phaseobject_trivalent(self, resolution, rad=1, boundary_mask=None):
+        """
+        Creates a "2D" trivalent two-phase media from the point-pattern through Centroidal Tessellation. Creates a trivalent network whose volume fraction is decided by `rad`.
+        Works with periodic point patterns by tessellating and then cropping to the central box.
+        
+        Parameters
+        ----------
+        resolution : float
+            Resolution of each pixel in microns.
+        rad : int, optional
+            Radius of dilation footprint (controls wall thickness).
+        boundary_mask : int, optional
+            Masking of boundary region.
+        """
+        # Create Voronoi from tessellated points
+        pts = self.tessellate()[:,:2]
+        vor = Voronoi(pts)
+
+        padding = 1
+        x_min, x_max = - self.BoxSize[0]/2 - padding, self.BoxSize[0]/2 + padding
+        y_min, y_max = - self.BoxSize[1]/2 - padding, self.BoxSize[1]/2 + padding
+        
+        # --- Step 1: Compute centroids of each finite cell ---
+        centroids = {}
+        for i, region_index in enumerate(vor.point_region):
+            region = vor.regions[region_index]
+            if -1 in region or len(region) == 0:
+                continue  # skip infinite cells
+            verts = vor.vertices[region]
+            if np.all((verts[:,0] > x_min) & (verts[:,0] < x_max) &
+                    (verts[:,1] > y_min) & (verts[:,1] < y_max)):
+                centroids[i] = np.mean(verts, axis=0)
+        
+        # --- Step 2: Connect centroids of neighboring cells ---
+        psi = np.zeros([int((x_max-x_min)/resolution),
+                        int((y_max-y_min)/resolution)], dtype=bool)
+        
+        for (p0, p1) in vor.ridge_points:
+            if p0 in centroids and p1 in centroids:
+                c0, c1 = centroids[p0], centroids[p1]
+                c0_pix = np.int64((c0 + np.array([x_max, y_max]))/resolution)
+                c1_pix = np.int64((c1 + np.array([x_max, y_max]))/resolution)
+                rr, cc = line(c0_pix[0], c0_pix[1], c1_pix[0], c1_pix[1])
+                psi[rr, cc] = 1
+
+        # --- Step 3: Dilate walls to desired thickness ---
+        psi = binary_dilation(psi, footprint=np.ones([rad, rad]))
+        
+        # --- Step 4: Clip back to central cell ---
+        clipped_phase = psi[int(padding/resolution):-int(padding/resolution),
+                            int(padding/resolution):-int(padding/resolution)]
+        
+        if boundary_mask is not None:
+            clipped_phase[:boundary_mask,:] = 1
+            clipped_phase[-boundary_mask:,:] = 1
+            clipped_phase[:,:boundary_mask] = 1
+            clipped_phase[:,-boundary_mask:] = 1
+        
+        Phase = PhaseDistribution(clipped_phase, resolution=resolution)
+        print(f"Volume fraction of generated phase = {Phase.volumefraction}")
+        return Phase
+    
+    def lloyd_relaxation(self,points, n_iter=10, box=None):
+        """Run Lloyd's algorithm for CVT inside a periodic box."""
+        pts = points.copy()
+        for _ in range(n_iter):
+            vor = Voronoi(pts)
+            new_pts = []
+            for i, region_index in enumerate(vor.point_region):
+                region = vor.regions[region_index]
+                if -1 in region or len(region) == 0:
+                    continue
+                verts = vor.vertices[region]
+                if box is not None:
+                    # Clip to box if needed
+                    if np.any((verts[:,0] < box[0]) | (verts[:,0] > box[1]) |
+                            (verts[:,1] < box[2]) | (verts[:,1] > box[3])):
+                        continue
+                centroid = np.mean(verts, axis=0)
+                new_pts.append(centroid)
+            pts = np.array(new_pts)
+        return pts
+
+    def Phaseobject_CVT(self, resolution, rad=1, n_lloyd=10, boundary_mask=None):
+        """
+        Creates 2D phase distribution using Centroidal Voronoi Tessellation (CVT).
+        Uses Voronoi vertices (trihedral coordination) like in the literature.
+        """
+        # --- Step 1: Lloyd relaxation ---
+        pts = self.tessellate()[:,:2]
+        relaxed_pts = self.lloyd_relaxation(pts, n_iter=n_lloyd)
+
+        # --- Step 2: Voronoi from relaxed points ---
+        vor = Voronoi(relaxed_pts)
+        padding = 1
+        x_min, x_max = - self.BoxSize[0]/2 - padding, self.BoxSize[0]/2 + padding
+        y_min, y_max = - self.BoxSize[1]/2 - padding, self.BoxSize[1]/2 + padding
+
+        # --- Step 3: Draw Voronoi edges (between vertices) ---
+        psi = np.zeros([int((x_max-x_min)/resolution),
+                        int((y_max-y_min)/resolution)], dtype=bool)
+
+        for vpair in vor.ridge_vertices:
+            if -1 in vpair:
+                continue  # skip infinite
+            v0, v1 = vor.vertices[vpair[0]], vor.vertices[vpair[1]]
+            if (x_min <= v0[0] <= x_max and y_min <= v0[1] <= y_max and
+                x_min <= v1[0] <= x_max and y_min <= v1[1] <= y_max):
+                p0 = np.int64((v0 - [x_min, y_min]) / resolution)
+                p1 = np.int64((v1 - [x_min, y_min]) / resolution)
+                rr, cc = line(p0[0], p0[1], p1[0], p1[1])
+                psi[rr, cc] = 1
+
+        # --- Step 4: Dilate walls ---
+        psi = binary_dilation(psi, footprint=np.ones((rad, rad)))
+
+        # --- Step 5: Crop to central box ---
+        clipped_phase = psi[int(padding/resolution):-int(padding/resolution),
+                            int(padding/resolution):-int(padding/resolution)]
+
+        if boundary_mask is not None:
+            clipped_phase[:boundary_mask,:] = 1
+            clipped_phase[-boundary_mask:,:] = 1
+            clipped_phase[:,:boundary_mask] = 1
+            clipped_phase[:,-boundary_mask:] = 1
+
+        Phase = PhaseDistribution(clipped_phase, resolution=resolution)
+        print(f"Volume fraction of generated phase = {Phase.volumefraction}")
+        return Phase
 
     def SpectralDensity(self):
         """

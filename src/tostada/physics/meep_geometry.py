@@ -6,7 +6,8 @@ from tostada.util.materials import Material
 
 class Meep_geometry:
     """
-    Create a meep geometrical object from a given PhaseDistribution of PointDistribution and 
+    Create a meep geometrical object from a given PhaseDistribution or PointDistribution. 
+    This class can be used for exporting and optically simulating tostada geometries in Finite-Difference Time-Domain method in 2D/3D. 
     """
     def __init__(self, distribution, Material):
         self.distribution = distribution

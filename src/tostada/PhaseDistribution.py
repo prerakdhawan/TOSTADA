@@ -38,11 +38,11 @@ class PhaseDistribution:
         self._compute_fft_axes()
     @property
     def Lx(self):
-        return self.BoxSize[1]*self.resolution
+        return self.BoxSize[0]*self.resolution #1
 
     @property
     def Ly(self):
-        return self.BoxSize[0]*self.resolution
+        return self.BoxSize[1]*self.resolution #0
     
     @property
     def Lz(self):

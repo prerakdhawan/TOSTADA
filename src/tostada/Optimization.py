@@ -157,7 +157,11 @@ class Optimization:
         term_imag_t = jnp.sin(argu_t)
         #term = jnp.exp(1j*(argu)) # do not reshape or transpose! grad_check pass with no gr
         term = term_real + 1j * term_imag
-        nk = jnp.sum((term_real_t - 1j * term_imag_t ),axis=0)
+        #term_t = term_real_t - 1j * term_imag_t
+        #nk = jnp.sum((term_real_t - 1j * term_imag_t ),axis=0)
+        nkreal = jnp.sum(term_real_t,axis=0)
+        nkimag = jnp.sum(term_imag_t,axis=0)
+        nk = nkreal - 1j*nkimag #jnp.sum(term_real_t,axis=0) - 1j*jnp.sum(term_imag_t,axis=0)
         del term_real, term_imag
         _cdist = jnp.hypot(G2r[1],G2r[0])
         kdist = jnp.hypot(Sq[0],Sq[1])
@@ -169,9 +173,13 @@ class Optimization:
         f_term1 = (weights1*((Sq_masked)-_Target) ).flatten()/jnp.sum(weights1) 
         factor = 1/(jnp.size(f_term2i))
         fk = 2*f_term1+factor*jnp.ravel((f_term2i))
-        large_term = term*nk*fk 
-        gradx = jnp.sum(large_term*jnp.ravel((Sq[0])),axis=1) #do not change
-        grady = jnp.sum(large_term*jnp.ravel((Sq[1])),axis=1) #do not change
+        large_term = np.array(term * nk)
+        large_term = large_term * np.array(fk)
+        #large_term = jnp.array(large_term)
+        #large_term = term*nk*fk 
+
+        gradx = np.sum(large_term*np.ravel((Sq[0])),axis=1) #do not change
+        grady = np.sum(large_term*np.ravel((Sq[1])),axis=1) #do not change
         grads = jnp.imag(jnp.column_stack([gradx,grady])) #do not change
         #grads = -(2/self.Distribution.totalparticles)*grads.flatten() 
         grads = -(2/total_pos.shape[0])*grads.flatten() 

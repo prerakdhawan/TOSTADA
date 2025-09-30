@@ -8,7 +8,7 @@ This package provides:
 '''  
 
 # package version
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .PointDistribution import PointDistribution  # noqa: F401
 from .PhaseDistribution import PhaseDistribution           # noqa: F401

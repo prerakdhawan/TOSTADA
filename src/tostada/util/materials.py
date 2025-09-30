@@ -41,7 +41,7 @@ class Material:
 
     def __init__(self, name, Description=None, refractive_index=1.0,
                  optical_measurements=None, optical_dispersions=None, youngs_modulus=None, 
-                 poisson_ratio=None, density=None):
+                 poisson_ratio=None, density=None, tensile_strength = None):
         
         self.name = name
         self.Description = Description
@@ -51,6 +51,7 @@ class Material:
         self.youngs_modulus = youngs_modulus 
         self.poisson_ratio = poisson_ratio
         self.density = density
+        self.tensile_strength = tensile_strength
         self.eps_inf = self.refractive_index**2 # epsilon in the infinite frequency limit
         self.meep_medium = self.Meep_medium() #self.meep_dispersion() if self.optical_dispersions is not None else None
 
@@ -184,11 +185,18 @@ optical_dispersion_melanin = np.array([
 
 AAO = Material(name='Anodized Aluminium Oxide (Al2O3)',
                refractive_index=np.sqrt(1.44), #only for eps_inf. Not to be confused with wavelength-independent refractive index of this media.
-               youngs_modulus=300e9,
+               youngs_modulus=300e9, #Pa
                optical_measurements=AAO_experiment,
                optical_dispersions=optical_dispersion_AAO,
-               poisson_ratio=0.33,
+               poisson_ratio=0.21,
                density=3900)
+
+Concrete = Material(name='Concrete',
+               youngs_modulus=37e9, #Pa
+               poisson_ratio=0.2,
+               density=2400, 
+               tensile_strength=3.5e6 #Pa
+               )
 
 Glass = Material(
                 name='Glass (SiO2)',
