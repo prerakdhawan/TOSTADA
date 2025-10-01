@@ -740,7 +740,8 @@ class PointDistribution:
         def isin_box(v):
             return np.logical_and( (x_min < v[0] < x_max), (y_min < v[1] < y_max) )
         vor = Voronoi(self.tessellate()[:,:2])
-        padding = 1
+        padding = int(1.0/resolution)*resolution
+        resolution = (padding+self.BoxSize[0]+padding)/((padding+self.BoxSize[0]+padding)//resolution)
         x_min, x_max = - self.BoxSize[0]/2 - padding, self.BoxSize[0]/2 + padding
         y_min, y_max = - self.BoxSize[1]/2 - padding, self.BoxSize[1]/2 + padding
         valid_edges = []
@@ -774,8 +775,8 @@ class PointDistribution:
             clipped_phase[:,:boundary_mask] = 1
             clipped_phase[:,-boundary_mask:] = 1
 
-        Phase = PhaseDistribution(clipped_phase, resolution=resolution)
-        print ('Volume fraction of generated phase = {v}'.format(v=Phase.volumefraction))
+        Phase = PhaseDistribution(clipped_phase, resolution=self.BoxSize[0]/clipped_phase.shape[0])
+        print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase 
 
     def Phaseobject_trivalent(self, resolution, rad=1, boundary_mask=None):
@@ -795,8 +796,8 @@ class PointDistribution:
         # Create Voronoi from tessellated points
         pts = self.tessellate()[:,:2]
         vor = Voronoi(pts)
-
-        padding = 1
+        padding = int(1.0/resolution)*resolution
+        resolution = (padding+self.BoxSize[0]+padding)/((padding+self.BoxSize[0]+padding)//resolution)
         x_min, x_max = - self.BoxSize[0]/2 - padding, self.BoxSize[0]/2 + padding
         y_min, y_max = - self.BoxSize[1]/2 - padding, self.BoxSize[1]/2 + padding
         
@@ -836,8 +837,8 @@ class PointDistribution:
             clipped_phase[:,:boundary_mask] = 1
             clipped_phase[:,-boundary_mask:] = 1
         
-        Phase = PhaseDistribution(clipped_phase, resolution=resolution)
-        print(f"Volume fraction of generated phase = {Phase.volumefraction}")
+        Phase = PhaseDistribution(clipped_phase, resolution=self.BoxSize[0]/clipped_phase.shape[0])
+        print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase
     
     def lloyd_relaxation(self,points, n_iter=10, box=None):
@@ -872,7 +873,8 @@ class PointDistribution:
 
         # --- Step 2: Voronoi from relaxed points ---
         vor = Voronoi(relaxed_pts)
-        padding = 1
+        padding = int(1.0/resolution)*resolution
+        resolution = (padding+self.BoxSize[0]+padding)/((padding+self.BoxSize[0]+padding)//resolution)
         x_min, x_max = - self.BoxSize[0]/2 - padding, self.BoxSize[0]/2 + padding
         y_min, y_max = - self.BoxSize[1]/2 - padding, self.BoxSize[1]/2 + padding
 
@@ -904,8 +906,8 @@ class PointDistribution:
             clipped_phase[:,:boundary_mask] = 1
             clipped_phase[:,-boundary_mask:] = 1
 
-        Phase = PhaseDistribution(clipped_phase, resolution=resolution)
-        print(f"Volume fraction of generated phase = {Phase.volumefraction}")
+        Phase = PhaseDistribution(clipped_phase, resolution=self.BoxSize[0]/clipped_phase.shape[0])
+        print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase
 
     def SpectralDensity(self):
