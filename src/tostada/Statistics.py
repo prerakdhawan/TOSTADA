@@ -1,8 +1,10 @@
 import numpy as np
-from scipy.stats import norm
-from scipy.stats import binned_statistic,gaussian_kde
+import cv2
+from scipy.stats import binned_statistic,gaussian_kde,norm
 from skimage.morphology import ball,disk,dilation,binary_erosion
 from scipy.ndimage import distance_transform_edt,zoom
+#from tostada.PointDistribution import PointDistribution
+import matplotlib.pyplot as plt
 
 def angular_average(data,dkx):
     """
@@ -202,3 +204,161 @@ def MaternIII_distribution_function(x, alpha, beta=None):
          0]
     )
 
+
+class Morphology:
+    """
+    Evaluate the morphological properties of the distribution. Discrete objects/voids are detected by first finding contours and later approximating each with a closed polygon.
+    Can be used to obtain center-of-mass of each arbitrarily shaped object/void, their interfacial length (perimeter) and the shape descriptors capturing the local s-fold symmetries in the system. 
+    ! Currently, only implemented/tested for 2D distributions. Future release will also have area and curvature of each object/void.
+
+    Parameters
+    ----------
+
+    distribution : tostada.PhaseDistribution object
+        Distribution for which the morphological parameters are to be evaluated. 
+        Both `PointDistribution` and `PhaseDistribution` can create a `Morphology` object through a `get_morphological_parameters()` method.
+
+    smax : int
+        Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
+    
+    """
+    def __init__(self, distribution=None,smax=6,**kwargs):
+        self.distribution = distribution
+        self.smax=smax
+        self.positions, self.polygons,self.psi = self.morphology()
+
+    def morphology(self):
+        """
+        Detects arbitrary polygons in the phase distribution. For each shape, the center-of-mass and their polygon coordinates are returned. 
+        For circular objects/void, the polygons will approximate to discs for high resolutions. 
+
+        Returns
+        -------
+
+        positions : N x 2 array
+            Center of mass of each object. Can be used to create a `PointDistribution` object.
+
+        polygons : list
+            List of coordinates comprising each polygon. Can be used to study shape statistics with `structure_metrics()`.
+
+        """
+        contours,_=cv2.findContours(self.distribution.image.astype('uint8').T, cv2.RETR_TREE, 
+                                    cv2.CHAIN_APPROX_SIMPLE)  
+        centers = []
+        polygons = []
+        for contour in contours:
+            # Approximate contour to polygon
+            epsilon = self.distribution.resolution * cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            
+            # Get the moments to calculate the center
+            polygons.append(self.distribution.resolution*approx)
+            M = cv2.moments(approx)
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                centers.append((cX, cY))
+            else:
+                cX, cY = 0, 0
+
+        positions = self.distribution.resolution*np.array(centers)
+        psi = self.structure_metrics(polygons)
+        return positions,polygons,psi
+    
+    @staticmethod
+    def polygon_normals_and_lengths(polygon):
+        """
+        Quantifies the interface (boundary in 1D) of a polygon by evaluating the length of each segment and the angle its corresponding normal makes with the horizontal axis.
+        This is used in `structure_metrics` to decompose the obtained quantity into irreducible representation of the rotation group.
+
+        Parameters
+        ----------
+
+        polygon : N x 2 array
+            Array of points comprising the input polygon. If using a `PhaseDistribution`, this can be the shape of detected objects/pores.
+
+        Returns
+        -------
+
+        out : N x 2 array
+            Array where the zeroth column contains length of each edge and first column are the outward normal angles in radians.
+
+        """
+        coords = polygon
+        N = len(coords) #- 1  # last point = first point
+        out = []
+        for i in range(N):
+            i1 = i
+            i2 = i+1 if (i<N-1) else 0
+
+            x0, y0 = coords[i1]
+            x1, y1 = coords[i2]
+            dx = x1 - x0
+            dy = y1 - y0
+            L = np.hypot(dx, dy)
+            if L < 1e-12:
+                continue
+            # outward normal: if poly is CCW, outward normal is (dy, -dx) / L
+            nx =  dy / L
+            ny = -dx / L
+            phi = np.arctan2(ny, nx)  # angle in [-π, +π]
+            if phi < 0:
+                phi += 2*np.pi
+            out.append((L, phi))
+        return np.array(out)
+
+
+    def structure_metrics(self,polygons):
+        """
+        Evaluates the normalized Minkowski Structure Metrics for each object/void in the PhaseDistribution. 
+        Each structure metric q0,q1,...,qs qualitatively captures the s-fold symmetry. For more details, see https://morphometry.org/theory/anisotropy-analysis-by-imt. 
+
+        Returns
+        -------
+
+        psi : M x smax array
+            Minkowski structure metrics up till the order `smax` for each M polygons. psi[:,0] contains perimeter of each polygon.
+        """
+
+        s = np.arange(self.smax+1)
+        num_poly = len(polygons)
+        psi = np.zeros([num_poly,s.shape[0]])
+
+        for i in range(num_poly):
+            poly = polygons[i].reshape(-1,2)
+            den = self.polygon_normals_and_lengths(poly)
+            psi_ = np.sum(den[:,0]*np.exp(1j*np.outer(s,den[:,1])),axis=1)
+            psi[i,:] = np.abs(psi_)/np.abs(psi_[0])
+            psi[i,0] = np.abs(psi_[0])
+        return psi
+
+    def get_morphology_stats(self,ax=None,skipind=1,**kwargs):
+        """
+        Morphological statistics of the detected shapes. Takes mean and standard deviation of each Minkowski structure metrics and plots a bar chart for summary.
+        The mean and standard deviation are later accesible as `.mean_stats` and `.std_stats`, respectively.
+
+        Parameters
+        ----------
+
+        skipind : int
+            Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
+
+        Returns
+        -------
+
+        ax : matplotlib.axes, optional
+            Matplotlib axes containing the detected polygons. Can be used to combine several plots. If not provided, creates a new figure.
+
+        """
+
+        if ax is None:
+            fig = plt.figure(figsize=(7, 7))
+            ax = fig.add_subplot(1,1,1)
+        self.mean_stats = np.mean(self.psi[skipind:,:],axis=0)
+        self.std_stats = np.std(self.psi[skipind:,:],axis=0)
+        print ('Mean interfacial length = {m}+/-{st}'.format(m=self.mean_stats[0],st=self.std_stats[0]))
+        ax.bar(np.arange(self.smax+1)[1:],self.mean_stats[1:],width=0.2,yerr=self.std_stats[1:],**kwargs)
+        ax.set_ylim(0,1)
+        ax.set_xlabel('Structure metrics $q_m$',fontsize=14)
+        
+        return ax

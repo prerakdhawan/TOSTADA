@@ -2,6 +2,7 @@ import cv2
 import autograd.numpy as np
 import matplotlib.pyplot as plt
 import tostada.Statistics as stats
+from tostada.Statistics import Morphology
 import pickle
 
 class PhaseDistribution:
@@ -132,6 +133,31 @@ class PhaseDistribution:
         self.Xq_averaged = stats.angular_average(self.Xq,dkx=2*np.pi/self.Lx)
         return self.Xq,self.Xq_averaged
     
+    def get_morphological_parameters(self,smax=6,**kwargs):
+        """
+        Construct a `Morphology` object containing the shape properties of the detected objects/voids. 
+        Currently, yields center-of-mass of each arbitrarily shaped object/void, their interfacial length (perimeter) and the shape descriptors capturing the local s-fold symmetries in the system. 
+        See tostada.Statistics for further details.
+
+        Parameters
+        ----------
+
+        smax : int
+            Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
+
+        Returns
+        -------
+
+        Mor : Morphology object
+            This object contains information about the center-of-masses of detected objects, their coordinates as well as their normalized Minkowski structure metrics.
+            The detected objects can be visualized using `tostada.Visualize.plot_detected_polygons()`
+            
+        """
+        Mor = Morphology(self,smax)
+        self.morphology = Mor
+        print ('Morphology object created')
+        return Mor
+    
     def get_resolution(self,scale_sem=1,test=False,binarized=True,vmin=100,vmax=160): 
         """
         Extract scale-bar from an SEM image. Once extracted, self.resolution is re-scaled accordingly. 
@@ -233,27 +259,6 @@ class PhaseDistribution:
         self.ACF = ACFdata
         return self.ACF
 
-    def centerofmass_pores(self,dr=0.02):
-            #contours,_=cv2.findContours(binary_image[100:500,200:600], cv2.RETR_TREE, 
-        #                            cv2.CHAIN_APPROX_SIMPLE) # Detecting shapes in image by selecting region with same colors or intensity. 
-        contours,_=cv2.findContours(self.image, cv2.RETR_TREE, 
-                                    cv2.CHAIN_APPROX_SIMPLE) # Detecting shapes in image by selecting region with same colors or intensity. 
-        centers = []
-
-        for contour in contours:
-            # Approximate contour to polygon
-            epsilon = dr * cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, epsilon, True)
-            
-            # Get the moments to calculate the center
-            M = cv2.moments(approx)
-            if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                centers.append((cX, cY))
-            else:
-                cX, cY = 0, 0
-        return centers
 
     def tesselate(self,copies=1):
         """

@@ -5,8 +5,11 @@ import matplotlib.gridspec as gridspec
 from tostada.PhaseDistribution import PhaseDistribution
 from tostada.PointDistribution import PointDistribution
 import tostada.Statistics as stats
+from tostada.Statistics import Morphology
 from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
+import matplotlib.patches as Patch
+import matplotlib.cm as cm
 
 class Visualize:
     def __init__(self, distribution):
@@ -90,8 +93,8 @@ class Visualize:
                                     alpha=1)
         ax.add_collection(collection)
         ax.set_title('Point Distribution, mean interparticle distance = {D}'.format(D=self.distribution.dmean))
-        ax.set_xlabel('X ($\mu$m)',fontsize=15)
-        ax.set_ylabel('Y ($\mu$m)',fontsize=15)
+        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\mathrm{\mu}$m)',fontsize=15)
         return ax
 
     def _plot_phasedistribution(self,ax,cmap):
@@ -106,8 +109,8 @@ class Visualize:
                             extent=[0,self.distribution.Lx,0,self.distribution.Lz], cmap=cmap)
         ax.figure.colorbar(cax,ax=ax)
         ax.set_title('Phase Distribution')
-        ax.set_xlabel('X ($\mu$m)',fontsize=15)
-        ax.set_ylabel('Z ($\mu$m)',fontsize=15)
+        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_ylabel('Z ($\mathrm{\mu}$m)',fontsize=15)
         return ax
     
     def _plot_spectraldensity(self,ax,kmax,
@@ -125,15 +128,15 @@ class Visualize:
             
         ax[0].figure.colorbar(cax,ax=ax[0])
         ax[0].set_title('Reciprocal Space, Spectral density $\\tilde{X}(\mathbf{q})$')#'Point Distribution, mean interparticle distance = {D}'.format(self.distribution.dmean))
-        ax[0].set_xlabel('$q_{x}$ ($\mu$m$^{-1}$)',fontsize=15)
-        ax[0].set_ylabel('$q_{y}$ ($\mu$m$^{-1}$)',fontsize=15)
+        ax[0].set_xlabel('$q_{x}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
+        ax[0].set_ylabel('$q_{y}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
         ax[0].set_xlim(-kmax,kmax)
         ax[0].set_ylim(-kmax,kmax)
 
         Xq_averaged = Xq_[1]
         ax[1].plot(Xq_averaged[:,0],Xq_averaged[:,1])
         ax[1].set_xlim(0,kmax)
-        ax[1].set_xlabel('|q| ($\mu$m$^{-1}$)',fontsize=14)
+        ax[1].set_xlabel('|q| ($\mathrm{\mu}$m$^{-1}$)',fontsize=14)
         ax[1].set_ylabel('$\\tilde{X}(|\mathbf{q}|)$',fontsize=14)
         return ax
     
@@ -153,14 +156,14 @@ class Visualize:
 
         ax[0].figure.colorbar(cax,ax=ax[0])
         ax[0].set_title('Reciprocal Space, Structure Factor $S(\mathbf{q})$')
-        ax[0].set_xlabel('$q_{x}$ ($\mu$m$^{-1}$)',fontsize=15)
-        ax[0].set_ylabel('$q_{y}$ ($\mu$m$^{-1}$)',fontsize=15)
+        ax[0].set_xlabel('$q_{x}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
+        ax[0].set_ylabel('$q_{y}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
         ax[0].set_xlim(-kmax,kmax)
         ax[0].set_ylim(-kmax,kmax)
 
         ax[1].plot(self.distribution.Sq_averaged[:,0],self.distribution.Sq_averaged[:,1])
         ax[1].set_xlim(0,kmax)
-        ax[1].set_xlabel('|q| ($\mu$m$^{-1}$)',fontsize=14)
+        ax[1].set_xlabel('|q| ($\mathrm{\mu}$m$^{-1}$)',fontsize=14)
         ax[1].set_ylabel('$\\tilde{S}(|\mathbf{q}|)$',fontsize=14)
         return ax
     
@@ -170,14 +173,14 @@ class Visualize:
         cax = ax[0].pcolormesh(self.distribution.G2r[0],self.distribution.G2r[1],self.distribution.G2r[2],vmax=vmax,cmap=cmap)
         ax[0].figure.colorbar(cax,ax=ax[0])
         ax[0].set_title('Pair correlation $G_{2}(\mathbf{r})$')
-        ax[0].set_xlabel('$x_{x}$ ($\mu$m)',fontsize=15)
-        ax[0].set_ylabel('$y_{x}$ ($\mu$m)',fontsize=15)
+        ax[0].set_xlabel('$x_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
+        ax[0].set_ylabel('$y_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
         ax[0].set_xlim(-Rmax,Rmax)
         ax[0].set_ylim(-Rmax,Rmax)
 
         ax[1].plot(self.distribution.G2r_averaged[:,0],self.distribution.G2r_averaged[:,1])
         ax[1].set_xlim(0,Rmax)
-        ax[1].set_xlabel('|r| ($\mu$m)',fontsize=14)
+        ax[1].set_xlabel('|r| ($\mathrm{\mu}$m)',fontsize=14)
         ax[1].set_ylabel('$G_{2}(|\mathbf{r}|)$',fontsize=14)
         return ax
     
@@ -195,14 +198,14 @@ class Visualize:
                                    vmax=vmax,cmap=cmap)
         ax[0].figure.colorbar(cax,ax=ax[0])
         ax[0].set_title('ACF $(\mathbf{r})$')
-        ax[0].set_xlabel('$x_{x}$ ($\mu$m)',fontsize=15)
-        ax[0].set_ylabel('$y_{x}$ ($\mu$m)',fontsize=15)
+        ax[0].set_xlabel('$x_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
+        ax[0].set_ylabel('$y_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
         ax[0].set_xlim(-Rmax,Rmax)
         ax[0].set_ylim(-Rmax,Rmax)
         ACF_averaged = stats.angular_average(self.distribution.ACF,dr)
         ax[1].plot(ACF_averaged[:,0],ACF_averaged[:,1])
         ax[1].set_xlim(0,Rmax)
-        ax[1].set_xlabel('|r| ($\mu$m)',fontsize=14)
+        ax[1].set_xlabel('|r| ($\mathrm{\mu}$m)',fontsize=14)
         ax[1].set_ylabel('ACF $(|\mathbf{r}|)$',fontsize=14)
         return ax#self.fig, self.ax
     
@@ -215,7 +218,7 @@ class Visualize:
         ACF = self.distribution.compute_principal_ACF()
         for i in range(ACF.shape[0]):
             ax.plot(ACF[i][:,0],ACF[i][:,1],label='$C_{i}$'.format(i=i))
-        ax.set_xlabel('R ($\mu$m)',fontsize=fontsize)
+        ax.set_xlabel('R ($\mathrm{\mu}$m)',fontsize=fontsize)
         ax.set_ylabel('ACF',fontsize=fontsize)
         ax.legend(fontsize=fontsize)
         return ax
@@ -282,4 +285,107 @@ class Visualize:
         ax.set_xlim(0,np.pi/2)
         ax.set_theta_zero_location('N')  # Set 0° (North) at the top
         ax.set_theta_direction(-1) 
+        return ax
+    
+    def plot_detected_polygons(self,smax=6,ax=None,skipind=2,**kwargs):
+        """
+        Plots the detected polygons from `Morphology`. 
+        If not created already, it creates the Morphology object either trivially (if a `PhaseDistribution`) or 
+        non-trivially by mapping the points to a phase distribution using available conversion methods.
+
+        Parameters
+        ----------
+
+        smax : int
+            Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
+    
+        skipind : int
+            Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
+
+        Returns
+        -------
+
+        ax : matplotlib.axes, optional
+            Matplotlib axes containing the detected polygons. Can be used to combine several plots. If not provided, creates a new figure.
+
+        """
+        if not hasattr(self.distribution, 'morphology'):
+            mor = self.distribution.get_morphological_parameters(smax=smax,**kwargs)
+        else:
+            mor = self.distribution.morphology
+        #mor = Morphology(self.distribution,smax=smax,**kwargs)
+        if ax is None:
+            fig = plt.figure(figsize=(7, 7))
+            ax = fig.add_subplot(1,1,1)
+
+        num_poly = len(mor.polygons)
+        #if kwargs is None:
+        #    kwargs = dict(color='red', linewidth=1)
+
+        for i in range(skipind,num_poly):
+            poly = np.vstack([mor.polygons[i][:,0],mor.polygons[i][0]])
+            ax.plot(poly[:,0],poly[:,1],**kwargs)
+
+        #ax.set_title('Detected objects/voids = {D}'.format(D=self.distribution.dmean))
+        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\mathrm{\mu}$m)',fontsize=15)
+        return ax
+
+
+    def plot_structure_metric(self, s=6, smax=6, ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
+        """
+        Plots the kth structure metric for each detected polygon from `Morphology`. These can be obtained using `structure_metrics()`. 
+        
+        Parameters
+        ----------
+
+        s : int
+            Order which needs to be plotted for each detected polygon.
+
+        ax : matplotlib.axes, optional
+            Matplotlib axes. Can be used to combine several plots. If not provided, creates a new figure.
+
+        cmap : matplotlib.colormap
+            Name of matplotlib colormap
+        
+        smax : int
+            Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
+        
+        skipind : int
+            Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
+        """
+        if not hasattr(self.distribution, 'morphology'):
+            mor = self.distribution.get_morphological_parameters(smax=smax,**kwargs)
+        else:
+            mor = self.distribution.morphology
+        
+        #mor = self.distribution.get_morphological_parameters(smax=smax,**kwargs) # Morphology(self.distribution,smax=smax,**kwargs)
+        psi = mor.psi #mor.structure_metrics(smax)
+
+        if ax is None:
+            fig = plt.figure(figsize=(9, 9))
+            ax = fig.add_subplot(1,1,1)
+
+        if edge_kwargs is None:
+            edge_kwargs = dict(edgecolor='k', linewidth=0.5)
+
+        values = psi[:,s]#np.asarray(values)
+        norm = plt.Normalize(vmin=0, vmax=1)
+
+        colormap = cm.get_cmap(cmap)
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        for poly_coords, val in zip(mor.polygons[skipind:], values[skipind:]):
+            patch = Patch.Polygon(poly_coords.reshape(-1,2), closed=True,
+                                facecolor=colormap(norm(val)),
+                                **edge_kwargs
+                                )
+            im = ax.add_patch(patch)
+
+        ax.autoscale()
+        ax.set_aspect('equal')
+        ax.figure.colorbar(sm,ax=ax)
+        ax.set_title('Minkowski structure metric $q_{s}$'.format(s=s),fontsize=14)
+        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\mathrm{\mathrm{\mu}}$m)',fontsize=15)
         return ax

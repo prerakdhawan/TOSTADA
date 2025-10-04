@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.0 - 2025-10-04
+- Added morphology class for shape characterization of objects/voids.
+
 ## 0.2.1 - 2025-10-01
 - Fixed resolution-dependent errors of point-to-phase mappings.
 

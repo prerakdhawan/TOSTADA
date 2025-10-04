@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from tostada.PhaseDistribution import PhaseDistribution
 import tostada.Statistics as stats
+from tostada.Statistics import Morphology
 from scipy.stats import binned_statistic
 import jax
 import jax.numpy as jnp
@@ -164,6 +165,52 @@ class PointDistribution:
         print ('Mean center-to-center distance = {d}'.format(d=Dmean))
         return np.float32(Dmean)
     
+    def get_morphological_parameters(self,smax=6,method='cvt',**kwargs):
+        """
+        Construct a `Morphology` object containing the shape properties of the objects/voids. 
+        Currently, yields center-of-mass (comparable to `self.positions`) of each arbitrarily shaped object/void, their interfacial length (perimeter) 
+        and the shape descriptors capturing the local s-fold symmetries in the system. See tostada.Statistics for further details.
+
+        Parameters
+        ----------
+
+        smax : int
+            Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
+
+        method : str
+            Method to convert the underlying point distribution to `PhaseDistribution`. Available options are:
+            `cvt` : Centroidal Voronoi Tessellation (CVT). Relaxes the point distribution first before forming voronoi network.
+            `vor` : Directly constructs a voronoi network from the point distribution.
+            `tri` : Trivalent network. Uses Delaunay triangulation.
+            `circle` : Replaces points with identical circular pores of given radii.
+
+        Returns
+        -------
+
+        Mor : Morphology object
+            This object contains information about the center-of-masses of detected objects, their coordinates as well as their normalized Minkowski structure metrics.
+            The detected objects can be visualized using `tostada.Visualize.plot_detected_polygons()`
+        
+        """
+        boundary_mask = kwargs.get('boundary_mask',None)
+        res = kwargs.get('res',0.01)
+        rad = kwargs.get('rad',10)
+        if (method=='cvt'):
+            distribution = self.Phaseobject_CVT(boundary_mask=boundary_mask, rad=rad,resolution=res)
+        elif (method=='vor'):
+            distribution = self.Phaseobject_voronoi(boundary_mask=boundary_mask, rad=rad,resolution=res)
+        elif (method=='tri'):
+            distribution = self.Phaseobject_trivalent(boundary_mask=boundary_mask, rad=rad,resolution=res)
+        elif (method=='circle'):
+            mode = 'periodic' if boundary_mask is None else boundary_mask
+            diameter = kwargs.get('diameter',self.diameter-5e-4) # minor tolerance to remove spuriously overlapping particles 
+            distribution = self.Phaseobject(dx=res,mode=mode,diameter=diameter)
+        
+        Mor = Morphology(distribution,smax)
+        self.morphology = Mor
+        print ('Morphology object created with method={m}'.format(m=method))
+        return Mor
+    
     #Delete this after checking Optimization.py. Now implemented in Statistics.py        
     def angular_average(self,XYS,dkx):
         """
@@ -302,6 +349,7 @@ class PointDistribution:
         """
         Compute the Structure Factor of the point-distribution in 2D or 3D using Hermitian Symmetry. Also CUDA enabled for 3D point-distributions. 
         For optimizations, use gradients of this function.
+
         Parameters
         ----------
         kmax : float
@@ -665,7 +713,7 @@ class PointDistribution:
             padding=0
             Box = np.array(rxy_.BoxSize)
             rxy = rxy_.positions
-            print (Box)
+            #print (Box)
         else:
             rxy = self.positions
             factor=1
