@@ -11,15 +11,22 @@ from scipy.interpolate import interp1d,RegularGridInterpolator
 def read_file(folder_path, keyword, N):
     """
     Reads the Nth file from folder_path with the given keyword. If no keyword and/or N is passed, the 0th file from the folder is picked. 
-    Loading is according to the file extension. 
-    Currently used in phaseprocess and pointprocess.
+    Makes it convenient to read files generated from a parametric study. Loading is according to the file extension. 
+    Currently supports `tiff`, `png`, `npy`, `npz`, `csv` and `pkl` (from .save() functions of `PointDistribution` and `PhaseDistribution`).
     """
+    def extract_number(filename):
+        """
+        Regex for extracting a given number (negative or positive, float or integer or scientific notation) from a given string.
+        """
+        match = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", filename)
+        return float(match.group()) if match else float('inf')
+    
     all_files = os.listdir(folder_path)
     filtered_files = [f for f in all_files if keyword in f]
-    
+    print ('Found {n} files with the given keyword'.format(n=len(filtered_files)) )
     # Sort numerically by number in filename
-    filtered_files.sort(key=lambda x: int(re.search(r'\d+', x).group()))
-    
+    #filtered_files.sort(key=lambda x: int(re.search(r'\d+', x).group()))
+    filtered_files.sort(key=extract_number)
     selected_file = filtered_files[N]
     image_path = os.path.join(folder_path, selected_file)
     
@@ -37,6 +44,9 @@ def read_file(folder_path, keyword, N):
         image = np.loadtxt(image_path, delimiter=',')
     elif ext in ('.tif', '.tiff', '.png'):
         image = tiff.imread(image_path)
+    elif ext == '.pkl':
+        with open(image_path, 'rb') as f:
+            image = pickle.load(f)
     else:
         raise ValueError(f"Unsupported file format: {ext}")    
     return image, selected_file
