@@ -651,27 +651,51 @@ class PointDistribution:
         obj = np.sum(_cdist)
         return obj,cdist
 
-    def zoom_in(self,xmin,xmax,ymin,ymax,zmin=0,zmax=0):
+    def zoom(self,Box,shape='rect'):
         """
-        Queries all the particles inside a bounding box of [xmax-xmin, ymax - ymin, zmax - zmin].  
+        Queries all the particles inside a bounding region of a given shape. Currently, only circular/spherical and rectangular/cuboidal regions are possible.
         
+        Parameters
+        ----------
+        shape : str
+            Shape of the bounding region. Possible options: `rect` or `circ`
+        
+        Box : list of floats
+            If shape == 'rect', allowed input is [[xmin,xmax], [ymin,ymax] [zmin,zmax]] where xmin,xmax, ... etc are the coordinates of the bounding box. If 2D, providing just xy is sufficient.  
+            If shape == 'circ', allowed input is [[x0,y0,z0],[R]] where [x0,y0,z0] are center coordinates and R is the radius of the bounding circle. If 2D, providing x0,y0 for center coordinates is sufficient.
+
         Returns
         -------
         PointDistribution object: The M particles inside the newBoxSize with the same diameter.  
-        """
-        newBoxSize = [xmax - xmin, ymax - ymin, zmax - zmin]
-
-        #if (len(newBoxSize)<3):
-        #    newBoxSize = np.append(newBoxSize,0)
-        mask = np.logical_and(np.logical_and(self.positions[:,0]<xmax,self.positions[:,0]>xmin),
-                            np.logical_and(self.positions[:,1]<ymax,self.positions[:,1]>ymin),
-                            np.logical_and(self.positions[:,2]<zmax,self.positions[:,2]>zmin) )
         
+        """
+        if (shape=='rect'):
+            xmin,xmax = Box[0]
+            ymin,ymax = Box[1]
+            if (self.is_3D==True):
+                zmin,zmax = Box[2]
+            else:
+                zmin,zmax = 0,0
+            newBoxSize = [xmax - xmin, ymax - ymin, zmax - zmin]
+            mask = np.logical_and(np.logical_and(self.positions[:,0]<xmax,self.positions[:,0]>xmin),
+                                np.logical_and(self.positions[:,1]<ymax,self.positions[:,1]>ymin),
+                                np.logical_and(self.positions[:,2]<zmax,self.positions[:,2]>zmin) )
+            shifts = np.array([newBoxSize[0]/2 - xmax, newBoxSize[1]/2 - ymax, newBoxSize[2]/2 - zmax])
+        elif (shape=='circ'):
+            x0,y0 = Box[0][0],Box[1][1] 
+            if (self.is_3D==True):
+                z0 = Box[0][2]
+            else:
+                z0 = 0
+            R = Box[1]
+            newBoxSize=[2*R,2*R,self.is_3D*2*R]
+            norms=np.linalg.norm(self.positions - np.array([x0,y0,z0]),axis=1)
+            mask = np.where(norms<R)
+            shifts = - np.array([x0,y0,z0])
+
         newpositions = self.positions[mask]
-        shifts = np.array([newBoxSize[0]/2 - xmax, newBoxSize[1]/2 - ymax, newBoxSize[2]/2 - zmax])
         newpositions = newpositions + shifts 
         return PointDistribution(newpositions,diameter=self.diameter,BoxSize=newBoxSize)
-        #return PointDistribution(self.positions[mask],diameter=self.diameter,BoxSize=newBoxSize)
     
     def Phaseobject(self,dx,shape=None,diameter=None,mode=None):
         """
