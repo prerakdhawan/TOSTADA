@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import re
+import cv2
 import tifffile as tiff  
 import pickle
 from scipy.interpolate import interp1d,RegularGridInterpolator
@@ -42,8 +43,10 @@ def read_file(folder_path, keyword, N):
         image = np.load(image_path,allow_pickle=True)  # returns a NpzFile object
     elif ext == '.csv':
         image = np.loadtxt(image_path, delimiter=',')
-    elif ext in ('.tif', '.tiff', '.png'):
+    elif ext in ('.tif', '.tiff'):
         image = tiff.imread(image_path)
+    elif ext == '.png':
+        image = cv2.imread(image_path)
     elif ext == '.pkl':
         with open(image_path, 'rb') as f:
             image = pickle.load(f)
