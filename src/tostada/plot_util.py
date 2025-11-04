@@ -332,7 +332,7 @@ class Visualize:
         return ax
 
 
-    def plot_structure_metric(self, s=6, smax=6, ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
+    def plot_structure_metric(self, s=6, smax=6, orientations=False,ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
         """
         Plots the kth structure metric for each detected polygon from `Morphology`. These can be obtained using `structure_metrics()`. 
         
@@ -351,6 +351,9 @@ class Visualize:
         smax : int
             Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
         
+        orientations : bool
+            If True, plots local orientation angles instead of the structure metrics   
+
         skipind : int
             Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
         """
@@ -369,7 +372,10 @@ class Visualize:
         if edge_kwargs is None:
             edge_kwargs = dict(edgecolor='k', linewidth=0.5)
 
-        values = psi[:,s]#np.asarray(values)
+        if (orientations==True):
+            values = mor.orientations[:,s]
+        else:
+            values = psi[:,s]#np.asarray(values)
         norm = plt.Normalize(vmin=0, vmax=1)
 
         colormap = cm.get_cmap(cmap)

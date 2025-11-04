@@ -225,7 +225,7 @@ class Morphology:
     def __init__(self, distribution=None,smax=6,**kwargs):
         self.distribution = distribution
         self.smax=smax
-        self.positions, self.polygons,self.psi = self.morphology()
+        self.positions, self.polygons,self.psi,self.orientations = self.morphology()
 
     def morphology(self):
         """
@@ -252,7 +252,8 @@ class Morphology:
             approx = cv2.approxPolyDP(contour, epsilon, True)
             
             # Get the moments to calculate the center
-            polygons.append(self.distribution.resolution*approx)
+            if (approx.shape[0]>2):
+                polygons.append(self.distribution.resolution*approx)
             M = cv2.moments(approx)
             if M["m00"] != 0:
                 cX = int(M["m10"] / M["m00"])
@@ -262,8 +263,8 @@ class Morphology:
                 cX, cY = 0, 0
 
         positions = self.distribution.resolution*np.array(centers)
-        psi = self.structure_metrics(polygons)
-        return positions,polygons,psi
+        psi,orientations = self.structure_metrics(polygons)
+        return positions,polygons,psi,orientations
     
     @staticmethod
     def polygon_normals_and_lengths(polygon):
@@ -323,16 +324,17 @@ class Morphology:
         s = np.arange(self.smax+1)
         num_poly = len(polygons)
         psi = np.zeros([num_poly,s.shape[0]])
-
+        thetas = np.zeros([num_poly,s.shape[0]])
         for i in range(num_poly):
             poly = polygons[i].reshape(-1,2)
             den = self.polygon_normals_and_lengths(poly)
             psi_ = np.sum(den[:,0]*np.exp(1j*np.outer(s,den[:,1])),axis=1)
             psi[i,:] = np.abs(psi_)/np.abs(psi_[0])
             psi[i,0] = np.abs(psi_[0])
-        return psi
+            thetas[i,:] = np.nan_to_num(np.angle(psi_)/s)
+        return psi,thetas
 
-    def get_morphology_stats(self,ax=None,skipind=1,**kwargs):
+    def get_morphology_stats(self,ax=None,skipind=1,orientations=False,plot_results=True,**kwargs):
         """
         Morphological statistics of the detected shapes. Takes mean and standard deviation of each Minkowski structure metrics and plots a bar chart for summary.
         The mean and standard deviation are later accesible as `.mean_stats` and `.std_stats`, respectively.
@@ -343,6 +345,8 @@ class Morphology:
         skipind : int
             Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
 
+        orientations : bool
+            If True, plots the orientation statistics
         Returns
         -------
 
@@ -350,15 +354,21 @@ class Morphology:
             Matplotlib axes containing the detected polygons. Can be used to combine several plots. If not provided, creates a new figure.
 
         """
-
-        if ax is None:
-            fig = plt.figure(figsize=(7, 7))
-            ax = fig.add_subplot(1,1,1)
         self.mean_stats = np.mean(self.psi[skipind:,:],axis=0)
         self.std_stats = np.std(self.psi[skipind:,:],axis=0)
-        print ('Mean interfacial length = {m}+/-{st}'.format(m=self.mean_stats[0],st=self.std_stats[0]))
-        ax.bar(np.arange(self.smax+1)[1:],self.mean_stats[1:],width=0.2,yerr=self.std_stats[1:],**kwargs)
-        ax.set_ylim(0,1)
-        ax.set_xlabel('Structure metrics $q_m$',fontsize=14)
-        
-        return ax
+        self.mean_stats_orientations = np.mean(self.orientations[skipind:,:],axis=0)
+        self.std_stats_orientations = np.std(self.orientations[skipind:,:],axis=0)
+        if plot_results==True:
+            if ax is None:
+                fig = plt.figure(figsize=(7, 7))
+                ax = fig.add_subplot(1,1,1)
+            print ('Mean interfacial length = {m}+/-{st}'.format(m=self.mean_stats[0],st=self.std_stats[0]))
+            if (orientations==True):
+                ax.bar(np.arange(self.smax+1)[1:],self.mean_stats_orientations[1:],width=0.2,yerr=self.std_stats_orientations[1:],**kwargs)
+            else:
+                ax.bar(np.arange(self.smax+1)[1:],self.mean_stats[1:],width=0.2,yerr=self.std_stats[1:],**kwargs)
+            #ax.set_ylim(0,1)
+            ax.set_xlabel('Structure metrics $q_m$',fontsize=14)
+            return ax
+        else:
+            return self.mean_stats,self.std_stats
