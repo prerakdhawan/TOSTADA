@@ -45,7 +45,7 @@ def read_file(folder_path, keyword, N):
         image = np.loadtxt(image_path, delimiter=',')
     elif ext in ('.tif', '.tiff'):
         image = tiff.imread(image_path)
-    elif ext == '.png':
+    elif ext in ('.png','.jpg'):
         image = cv2.imread(image_path)
     elif ext == '.pkl':
         with open(image_path, 'rb') as f:

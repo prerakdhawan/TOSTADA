@@ -5,7 +5,7 @@
 # TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)
 
 _TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)_ is a GPU-enabled python package for **creating**, **simulating** and **analyzing** spatially disordered distributions with prescribed correlations in 2D/3D.
-The key idea behind `tostada` is to translate inverse-design and statistics tools specifically used in the context of disordered media to open-source physics-based solvers for simulating their optical or mechanical response.
+The key idea behind `tostada` is to translate inverse-design and statistics tools specifically used in the context of disordered media to open-source physics-based solvers for simulating their optical or mechanical response in an inter-operable manner.
 This repository brings together multiple computational strategies to explore the physics and geometry of complex disordered systems. Whether it is simulating wave propagation through disordered lattices, characterizing porous microstructure statistics, or using optimization tools to generate materials with tailored correlation functions — this toolkit has you covered.
 
 ## 🔧 Features
@@ -38,7 +38,7 @@ For convenient installation, we recommend a conda package manager. To avoid a bu
 
 `conda env create -f environment_tostada.yml` 
 
-and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. For seamless code development and research with tostada, it is advisable to now type in the terminal:
+and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. After activating this environment, install the pip dependencies for JAX support using `#pip install   "jax[cuda12]==0.8"   "jaxlib==0.8"   "jaxopt==0.8.5"   -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`. For seamless code development and research with tostada, it is advisable to now type in the terminal:
 
 `conda-develop /home/yourname/folder/tostada/src`
 

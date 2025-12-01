@@ -197,7 +197,7 @@ class Optimization:
 
     def interpolate_Target1D(self,Sq_target):
         """
-        Interpolate the 1D target function to a 2D grid. Assumes isotropy in reciprocal space. The 2D grid has resolution of 2\pi/ PointDistribution.BoxSize
+        Interpolate the 1D target function to a 2D grid. Assumes isotropy in reciprocal space. The 2D grid has resolution of 2\\pi/ PointDistribution.BoxSize
         
         Parameters
         ----------
