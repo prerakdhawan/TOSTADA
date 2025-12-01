@@ -38,7 +38,7 @@ For convenient installation, we recommend a conda package manager. To avoid a bu
 
 `conda env create -f environment_tostada.yml` 
 
-and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. After activating this environment, install the pip dependencies for JAX support using `#pip install   "jax[cuda12]==0.8"   "jaxlib==0.8"   "jaxopt==0.8.5"   -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`. For seamless code development and research with tostada, it is advisable to now type in the terminal:
+and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. After activating this environment, install the pip dependencies for JAX support using `pip install   "jax[cuda12]==0.8"   "jaxlib==0.8"   "jaxopt==0.8.5"   -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`. For seamless code development and research with tostada, it is advisable to now type in the terminal:
 
 `conda-develop /home/yourname/folder/tostada/src`
 
