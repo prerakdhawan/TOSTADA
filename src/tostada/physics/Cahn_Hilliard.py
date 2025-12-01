@@ -43,7 +43,7 @@ class CahnHilliard:
     p : float, optional
         Volume-fraction control, where solid fraction = 0.5 - p/2. For p = 0.14, solid fraction = 0.43. Default: 0.14
     D : float, optional
-        Mobility or diffusion coefficient. Default: 1.0.
+        Mobility or diffusion coefficient. Default: 1.0. A larger value implies faster simulation. For convergence, reduce dt appropriately.
     gamma : float, optional
         Controls the spatial width of the transition regions between different phases. Default: 0.5.
     num_iter : int, optional 
@@ -51,13 +51,16 @@ class CahnHilliard:
     dt : float, optional 
         Time step size. Default: 0.001.
     frame_iter : int, optional 
-        Interval for saving or plotting frames Default: 10.
+        Interval for saving, evaluating spectral density and plotting frames Default: 50. 
+        For 3D, keep this large as these are expensive evaluations and are only needed in few time steps.
     is_3D : bool, optional
         Is the phase distribution in 3D or 2D. Default: False (ndim=2D)
     resolution : float, optional
         Resolution of each pixel in microns. Default: 0.01 microns
-    seed : int, optional
+    seed : int, optional, optional
         Seed for the random initialization. Change for different outcomes.
+    initial_state : ndarray, optional
+        Initialized state. If None, creates a random one with self.seed
     """
     def __init__(
         self,
@@ -67,10 +70,11 @@ class CahnHilliard:
         gamma: float = 0.5,
         num_iter: int = 5000,
         dt: float = 0.001,
-        frame_iter: int = 10,
+        frame_iter: int = 50,
         is_3D = False,
         resolution = 0.01,
-        seed = 12,
+        seed = None,#12,
+        initial_state=None
     ) -> None:
         self.N = N
         self.p = p  # p = 0.14 gives 43% solid (0.5 - 0.14/2 = 0.43)
@@ -82,7 +86,8 @@ class CahnHilliard:
         self.is_3D = is_3D
         self.ndim = int(3*self.is_3D + 2*np.logical_not(self.is_3D)) #dimensionality (2D or 3D)
         self.resolution = resolution
-        self.seed = seed
+        self.seed = seed if seed is not None else 12
+        self.initial_state = initial_state
 
     # Optimized Cahn-Hilliard equation using custom Laplacian
     def CH_eqn(
@@ -139,7 +144,10 @@ class CahnHilliard:
         """
         Time-evolution for the Cahn-Hilliard equation. Returns a PhaseDistribution object.
         """
-        c: npt.NDArray[np.float64] = self.initialize_lattice()
+        if (self.initial_state is None):
+            c: npt.NDArray[np.float64] = self.initialize_lattice()
+        else:
+            c = self.initial_state
         t = 0
         
         # Ensure directories exist
@@ -197,17 +205,21 @@ class CahnHilliard:
                 print(f"t={t:.4f}: Solid: {solid_fraction:.3%}")
                 X = PhaseDistribution(c_,resolution=self.resolution)
                 xq = X.ReciprocalSpace()[1]
-                stats = X.Hyperuniformity_data()
-                Dmean = X.Dmean_from_q()
-                print ('FWHM={f}, Hyperuniformity={h}, Dmean={dm}'.format(f=stats[0],h=stats[1],dm=Dmean))
-                # Calculate and print structure size metric
-                structure_metric = self.calculate_structure_metric(c)
-                print(f"Structure size metric: {structure_metric:.4f}")
-                
+                if (i > 100):
+                    stats = X.Hyperuniformity_data(fwhm=False)
+                    Dmean = X.Dmean_from_q()
+                    #print ('FWHM={f}, Hyperuniformity={h}, Dmean={dm}'.format(f=stats[0],h=stats[1],dm=Dmean))
+                    print ('Hyperuniformity={h}, Dmean={dm}'.format(h=stats,dm=Dmean))
+                    # Calculate and print structure size metric
+                    structure_metric = self.calculate_structure_metric(c)
+                    print(f"Structure size metric: {structure_metric:.4f}")
+                else:
+                    stats=10
+                    structure_metric = 10
                 # Track evolution
                 times.append(t)
-                fwhms.append(stats[0])
-                Hyp.append(stats[1])
+                #fwhms.append(stats[0])
+                Hyp.append(stats)#[1])
                 solid_fractions.append(solid_fraction)
                 structure_sizes.append(structure_metric)
                 
@@ -223,7 +235,8 @@ class CahnHilliard:
         
         # Final evolution plot
         self.plot_evolution(times, solid_fractions, structure_sizes)
-        np.savez('CH_data/Hyperuniformity_evolution.npz',fwhm=np.asarray(fwhms),hyp=np.asarray(Hyp))
+        #np.savez('CH_data/Hyperuniformity_evolution.npz',fwhm=np.asarray(fwhms),hyp=np.asarray(Hyp))
+        #np.savez('CH_data/Hyperuniformity_evolution.npz',hyp=np.asarray(Hyp))
         X_final = PhaseDistribution((c+1)/2,resolution=self.resolution)
         self.c_final = (c+1)/2
         return X_final

@@ -52,6 +52,8 @@ class PointDistribution:
         self.ndim = 2*np.logical_not(self.is_3D) + 3*self.is_3D
         if (np.isscalar(self.BoxSize)==True):
             self.BoxSize = [self.BoxSize,self.BoxSize,self.is_3D*self.BoxSize]
+        elif (len(self.BoxSize)==2):
+            self.BoxSize = [self.BoxSize[0],self.BoxSize[1],0]
         self.Lx = np.max(self.positions[:,0]) - np.min(self.positions[:,0]) #may not be equal to BoxSize
         self.Ly = np.max(self.positions[:,1]) - np.min(self.positions[:,1]) #may not be equal to BoxSize
         self.Lz = np.max(self.positions[:,2]) - np.min(self.positions[:,2]) #will be zero if is_3D=False
@@ -142,7 +144,7 @@ class PointDistribution:
         self.G2r_averaged = stats.angular_average(self.G2r,dr)
         return self.G2r,self.G2r_averaged
     
-    def Hyperuniformity_data(self,kmax=80,dkx=None,pad=1,roi=10):
+    def Hyperuniformity_data(self,kmax=80,dkx=None,pad=1,roi=10,fwhm=True):
         """
         Spectral width (FWHM) and Hyperuniformity index of the point distribution. See Statistics.py for further details. 
         Note: FWHM may not always be meaningfull for point-distributions as a measure of spectral width here since S(q) -> 1 for q>>0
@@ -150,9 +152,12 @@ class PointDistribution:
         #if not hasattr(self, 'Sq_averaged'):
         dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         Sq = self.ReciprocalSpace(kmax,dkx)
-        Hdata = stats.fwhm_and_H(self.Sq_averaged,pad=pad,roi=roi)
-        print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
-        print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
+        Hdata = stats.fwhm_and_H(self.Sq_averaged,pad=pad,roi=roi,fwhm=fwhm)
+        if (fwhm==True):
+            print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
+            print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
+        else:
+            print ('Hyperuniformity of the structure = {h}'.format(h=Hdata))
         return Hdata
     
     def Dmean_from_q(self,factor=np.sqrt(3)/2,kmax=100):

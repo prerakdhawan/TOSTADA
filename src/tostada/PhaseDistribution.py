@@ -273,15 +273,18 @@ class PhaseDistribution:
         tesselated = np.kron(np.ones_like(grid[0]),self.image)
         return tesselated
     
-    def Hyperuniformity_data(self,pad=2,roi=20):
+    def Hyperuniformity_data(self,pad=2,roi=20,fwhm=True):
         """
         Spectral width (FWHM) and Hyperuniformity index of the structures. See Statistics.py for further details.
         """
         if not hasattr(self, 'Xq_averaged'):
             Xq = self.ReciprocalSpace()
-        Hdata = stats.fwhm_and_H(self.Xq_averaged,pad=pad,roi=roi)
-        print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
-        print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
+        Hdata = stats.fwhm_and_H(self.Xq_averaged,pad=pad,roi=roi,fwhm=fwhm)
+        if (fwhm==True):
+            print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
+            print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
+        else:
+            print ('Hyperuniformity of the structure = {h}'.format(h=Hdata))
         return Hdata
     
     def Dmean_from_q(self,factor=1,kmax=100):

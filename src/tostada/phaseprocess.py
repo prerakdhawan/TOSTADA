@@ -88,7 +88,7 @@ class Phaseprocess:
 
     def spinodal_decomposed_microstructure(self, D = 1, gamma=0.5, num_iter=5000, 
                                             dt = 0.001, frame_iter=10,seed=44, 
-                                            animate=False, binarize = False):
+                                            animate=False, binarize = False, initial_state=None):
         """
         Generate spinodal decomposed phase distribution using Cahn-Hilliard equations available in `tostada.physics`.
 
@@ -108,7 +108,7 @@ class Phaseprocess:
             Time stepping resolution for each time iteration.
 
         frame_iter : int
-            How frequently should the quantities be saved
+            How frequently should the quantities be evaluated and saved. Keep this large for 3D as this may excessively slow down the simulation.
 
         seed : int
             Seed for random numbers for initialization. 
@@ -118,6 +118,9 @@ class Phaseprocess:
 
         binarize : bool
             Whether the final distribution be binarized strictly to 0s and 1s. Default : False
+        
+        initial_state : ndarray
+            Initialization state. If not provided, assumes random state with given seed. Default : None
 
         Returns
         -------
@@ -134,7 +137,7 @@ class Phaseprocess:
                         N=N, p = p, D = D, 
                         gamma= gamma, num_iter = num_iter, 
                         dt = dt, frame_iter = frame_iter, is_3D = self.is_3D, 
-                        resolution = self.resolution, seed=seed)
+                        resolution = self.resolution, seed=seed, initial_state=initial_state)
         c_final = ch.solve()
         
         if (binarize==True):
