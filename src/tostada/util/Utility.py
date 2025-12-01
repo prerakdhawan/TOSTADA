@@ -117,8 +117,8 @@ class Spectrum:
     
     def Angular_spectrum(self,theta_res=200):
         """
-        Determines the angular spectrum of a system. It yields the scattering response I(\theta,\phi,\lambda). 
-        Currently, the form-factor is not included, so I(\theta,\phi,\lambda) = S(\theta,\phi,\lambda).
+        Determines the angular spectrum of a system. It yields the scattering response I(\\theta,\\phi,\\lambda). 
+        Currently, the form-factor is not included, so I(\\theta,\\phi,\\lambda) = S(\\theta,\\phi,\\lambda).
 
         Parameters
         ----------
@@ -130,7 +130,7 @@ class Spectrum:
         -------
 
         I_array : N_wvl x theta_res x theta_res
-            2D Scattering response as a function of each wavelength. It essentially maps the incident wavevector (2\pi/wavelength) to kx,ky grid.
+            2D Scattering response as a function of each wavelength. It essentially maps the incident wavevector (2\\pi/wavelength) to kx,ky grid.
 
         I1d_array : N_wvl x N_theta
             Angular-averaged scattering response as a function of theta and wavelength.
