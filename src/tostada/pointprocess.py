@@ -197,10 +197,11 @@ class Pointprocess:
         #pointconfig = PointDistribution(coords,self.diameter,[self.BoxSize, (np.max(coords[:,1]-np.min(coords[:,1]))) * np.sqrt(3) / 2  ])
         return pointconfig
     
-    def RandomSequentialAdsorption(self,sdev_histo=0.06,limit=int(1e6)):
+    def RandomSequentialAdsorption(self,sdev_histo=0.06,limit=int(1e6),substrate=None):
         """
         Random Sequential Adsorption process in 2D/3D. Sequentially deposits particles based on a half-gaussian probabilistic model until a desired particle density is reached. 
         Avoids overlapping particles.
+
         Parameters
         ----------
         sdev_histo : float, optional
@@ -208,8 +209,21 @@ class Pointprocess:
         limit : int, optional
             Maximum limit for the iterations. 
             Typically, the simulation stops well under this limit but if sdev_histo is very small compared to mean interparticle distance, the simulation will reach near this limit.
-        """
+        
+        substrate : tostada.PhaseDistribution object, optional
+            Carry out the deposition on a substrate. The substrate must be defined using tostada.PhaseDistribution. The particles are forbidden from sticking in porous regions.
+            If None, assumes a flat substrate with no pores/roughness.
 
+        Returns
+        -------
+
+        pointconfig : tostada.PointDistribution object
+        """
+        def is_forbidden(pos,substrate):
+            pos = pos + np.array(self.BoxSize)/2
+            pos = np.int32(pos/substrate.resolution)
+            is_forbidden_roi = np.prod(np.isin(pos[:2],np.array(np.where(substrate.image==0))))           
+            return np.bool(is_forbidden_roi)
         #SUPPORT FUNCTIONS
         def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█'):
             """
@@ -273,10 +287,12 @@ class Pointprocess:
             #"""
             Result=posTree.query(newCoord,k=1)
             NNdist=Result[0]
-
+            
+            forbidden_region = False if substrate is None else is_forbidden(newCoord,substrate)
             if NNdist<self.diameter:
                 continue
-            if NNdist>mean+self.diameter:
+            #if NNdist>mean+self.diameter:
+            if np.logical_and(NNdist > (mean+self.diameter),forbidden_region==False):
                 coords=np.vstack((coords,newCoord))
                 #placed+=1
                 placedLastRound=True
@@ -292,7 +308,8 @@ class Pointprocess:
                 #probStick*=stickingProb(NNdists[neighbor]-self.diameter,mean,sdev_histo)
                 probStick*=RSA_distribution_function(NNdists[neighbor]-self.diameter,mean,sdev_histo)
 
-            if probStick>=randn:
+            #if probStick>=randn:
+            if np.logical_and(probStick>=randn,forbidden_region==False):
                 coords=np.vstack((coords,newCoord))
                 #placed+=1
                 placedLastRound=True

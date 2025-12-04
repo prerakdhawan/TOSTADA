@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1 - 2025-12-04
+- Added substrate properties as degree of freedom in random-sequential-adsorption process.
+
 ## 0.3.0 - 2025-10-04
 - Added morphology class for shape characterization of objects/voids.
 
