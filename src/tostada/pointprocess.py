@@ -67,7 +67,7 @@ class Pointprocess:
         return PointDistribution(positions,diameter=diameter,BoxSize=BoxSize)
 
     
-    def rect_lattice(self,noise=0,correlation_length=0):
+    def rect_lattice(self,noise=0,correlation_length=0,is_periodic=False):
         """
         Pertubed rectangular lattice in 2D or 3D. Perturbations can either be uniform for each lattice site or correlated by a correlation function. 
         Currently correlation function is a simple gaussian with correlation length. Returns a PointDistribution object for further analysis.
@@ -117,43 +117,13 @@ class Pointprocess:
                     coords[i,0] = coords[i,0] + dx[j]*np.exp(-(rij/(2*correlation_length*self.ax+1e-5))**2)
                     coords[i,1] = coords[i,1] + dy[j]*np.exp(-(rij/(2*correlation_length*self.ay+1e-5))**2)
                     coords[i,2] = self.is_3D*(coords[i,2] + dz[j]*np.exp(-(rij/(2*correlation_length*self.az+1e-5))**2))
-        
-        pointconfig = PointDistribution(coords[~out],self.diameter,self.BoxSize)
+        if (is_periodic==True):
+            pointconfig = PointDistribution(np.mod(coords,self.BoxSize[0]),self.diameter,self.BoxSize) 
+        else:
+            pointconfig = PointDistribution(coords[~out],self.diameter,self.BoxSize)
         return pointconfig
 
-    #Use hex_lattice. Delete this in future
-    def hexagonal_lattice(self,noise=0):
-        """
-        Pertubed hexagonal lattice in 2D or 3D. Currently only uses uncorrelated noise. Returns a PointDistribution object for further analysis.
-        
-        Parameters
-        ----------
-        noise : float
-            Un-correlated perturbations. Normalized to lattice constants.        
-        
-        Returns
-        -------
-        PointDistribution object 
-        """
-        coord_x, coord_y = np.meshgrid(np.arange(0,self.BoxSize+1,step=self.ax), np.arange(0,self.BoxSize+2,step=1), sparse=False, indexing='xy')
-        ratio = np.sqrt(3) / 2
-        coord_y = coord_y * ratio          # Condense the coordinates along Y-axes
-        coord_x = coord_x.astype(np.float64)
-        coord_x[1::2, :] += 0.5            # Shift every other row of the grid
-        coord_x = coord_x.reshape(-1, 1)   # Flatten the grid matrices into [2500, 1] arrays
-        coord_y = coord_y.reshape(-1, 1)
-        radius = self.ax                     # Inflate each hexagon to the required radius
-        coord_x *= radius 
-        coord_y *= radius
-        particle_num = int(len(coord_x))
-        coord_x = coord_x.ravel() + np.random.uniform(low=-noise*(self.ax/2),high=noise*(self.ax/2),size=particle_num) + (-(self.ax*self.BoxSize)/2)
-        coord_y = coord_y.ravel() + np.random.uniform(low=-noise*(self.ay/2),high=noise*(self.ay/2),size=particle_num) + (-(self.ax*self.BoxSize)/2)
-        coords = np.c_[coord_x,coord_y,np.zeros(coord_x.shape[0])]
-        newboxsize = [np.max(coord_x)-np.min(coord_x),(np.max(coord_y)-np.min(coord_y)),0]
-        pointconfig = PointDistribution(coords,self.diameter,newboxsize)
-        return pointconfig
-
-    def hex_lattice(self, noise=0):
+    def hex_lattice(self, noise=0,is_periodic=False):
         """
         Pertubed hexagonal lattice in 2D. Currently only uses uncorrelated noise. Returns a PointDistribution object for further analysis.
         
