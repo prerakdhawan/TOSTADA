@@ -111,9 +111,7 @@ class CahnHilliard:
         # Calculate the chemical potential: f'(c) - gamma * lap_c
         # f'(c) = c^3 - c for the double-well potential
         mu = (c**3) - c - (1/4)-(gamma * lap_c) #chemical potential
-        #mu = c**7 - 3*c**3 - 3*c**5 + c - 1/8 - (gamma*lap_c)
-        # Return the Laplacian of the chemical potential
-        return asnumpy(D * laplace(input=mu, mode="wrap"))
+        return D * laplace(input=mu, mode="wrap")
 
     # Initialize random data on a 3D lattice with specified volume fraction
     def initialize_lattice(self) -> npt.NDArray[np.float64]:
@@ -123,31 +121,25 @@ class CahnHilliard:
         rng = np.random.default_rng(seed=self.seed)
         c = rng.choice([-1, 1], np.ones([self.N]*self.ndim).shape, p=[0.5 + (self.p / 2), 0.5 - (self.p / 2)])
         c_ = (c+1)/2
-        print(f"Initial mean value: {np.mean(c_):.4f}")
-        
+        print(f"Initial mean value: {cp.mean(c_):.4f}")
         return c
 
-    # forward Euler method with stability check
     def forward_euler(self, x, func, dt, *fargs) -> npt.NDArray[np.float64]:
         """
         Forward time updates for the concentration field.
         """
         increment = func(*fargs) * dt
-        # Check for numerical stability
-        #if np.max(np.abs(increment)) > 0.1:
-        #    print(f"Warning: Large update step detected: {np.max(np.abs(increment))}")
-        #    # Cap the maximum change to prevent instability
         return x + increment
 
     # solver function with performance tracking
-    def solve(self) -> npt.NDArray[np.float64]:
+    def solve(self) -> npt.NDArray[np.float32]:
         """
         Time-evolution for the Cahn-Hilliard equation. Returns a PhaseDistribution object.
         """
         if (self.initial_state is None):
-            c: npt.NDArray[np.float64] = self.initialize_lattice()
+            c: npt.NDArray[np.float32] = cp.asarray(self.initialize_lattice())
         else:
-            c = self.initial_state
+            c = cp.asarray(self.initial_state)
         t = 0
         
         # Ensure directories exist
@@ -156,7 +148,7 @@ class CahnHilliard:
 
         # Set up the plotting environment
         _, ax = plt.subplots()
-        self.plot_lattice(c, ax, t, i=0)
+        self.plot_lattice(asnumpy(c), ax, t, i=0)
         
         # Track performance
         start_time = time()
@@ -181,8 +173,8 @@ class CahnHilliard:
             
             # Check for conservation of total concentration (should be conserved)
             if i % 100 == 0:
-                total_before = np.mean((c+1)/2)
-                total_after = np.mean((c_new+1)/2)
+                total_before = cp.mean((c+1)/2)
+                total_after = cp.mean((c_new+1)/2)
                 if abs(total_before - total_after) > 1e-10:
                     print(f"Warning: Conservation violated! Before: {total_before}, After: {total_after}")
             
@@ -199,11 +191,11 @@ class CahnHilliard:
             # Only plot and save on specified intervals
             if i % self.frame_iter == 0:
                 ax.clear()
-                self.plot_lattice(c, ax, t, i)
+                self.plot_lattice(asnumpy(c), ax, t, i)
                 c_ = (c+1)/2
-                solid_fraction = np.mean(c_)
+                solid_fraction = cp.mean(c_)
                 print(f"t={t:.4f}: Solid: {solid_fraction:.3%}")
-                X = PhaseDistribution(c_,resolution=self.resolution)
+                X = PhaseDistribution(asnumpy(c_),resolution=self.resolution)
                 xq = X.ReciprocalSpace()[1]
                 if (i > 100):
                     stats = X.Hyperuniformity_data(fwhm=False)
@@ -211,34 +203,21 @@ class CahnHilliard:
                     #print ('FWHM={f}, Hyperuniformity={h}, Dmean={dm}'.format(f=stats[0],h=stats[1],dm=Dmean))
                     print ('Hyperuniformity={h}, Dmean={dm}'.format(h=stats,dm=Dmean))
                     # Calculate and print structure size metric
-                    structure_metric = self.calculate_structure_metric(c)
-                    print(f"Structure size metric: {structure_metric:.4f}")
-                else:
-                    stats=10
-                    structure_metric = 10
                 # Track evolution
                 times.append(t)
                 #fwhms.append(stats[0])
                 Hyp.append(stats)#[1])
-                solid_fractions.append(solid_fraction)
-                structure_sizes.append(structure_metric)
                 
             # Save intermediate results less frequently
             if i % (10 * self.frame_iter) == 0:
-                np.save(f'CH_data/c_{self.ndim}D_t={i}.npy', c)
-                
-                # Plot evolution so far
-                self.plot_evolution(times, solid_fractions, structure_sizes)
-                
+                np.save(f'CH_data/c_{self.ndim}D_t={i}.npy', asnumpy(c))
+                        
         total_time = time() - start_time
         print(f"Total computation time: {total_time:.2f}s ({self.num_iter/total_time:.2f} it/s)")
         
         # Final evolution plot
-        self.plot_evolution(times, solid_fractions, structure_sizes)
-        #np.savez('CH_data/Hyperuniformity_evolution.npz',fwhm=np.asarray(fwhms),hyp=np.asarray(Hyp))
-        #np.savez('CH_data/Hyperuniformity_evolution.npz',hyp=np.asarray(Hyp))
-        X_final = PhaseDistribution((c+1)/2,resolution=self.resolution)
-        self.c_final = (c+1)/2
+        X_final = PhaseDistribution(asnumpy((c+1)/2),resolution=self.resolution)
+        self.c_final = X_final.image #(c+1)/2
         return X_final
     
     # Plot the evolution of phases and structure size
@@ -259,25 +238,10 @@ class CahnHilliard:
         ax2.set_ylabel('Structure Size Metric')
         ax2.set_title('Evolution of Structure Size')
         ax2.grid(True)
-        
         plt.tight_layout()
         plt.savefig('CH_data/evolution_plot.png')
         plt.close(fig)
     
-    # Calculate a metric for structure size 
-    def calculate_structure_metric(self, c):
-        """Calculate a metric for structure size using spatial autocorrelation"""
-        # Calculate the gradient magnitude
-        grad_x = np.roll(c, -1, axis=0) - np.roll(c, 1, axis=0)
-        grad_y = np.roll(c, -1, axis=1) - np.roll(c, 1, axis=1)
-        grad_z = 0#np.roll(c, -1, axis=2) - np.roll(c, 1, axis=2)
-        
-        # Interface density is related to the gradient magnitude
-        interface_density = np.mean(grad_x**2 + grad_y**2 + grad_z**2)
-        
-        # Inverse of interface density gives a measure of structure size
-        # Higher values indicate larger structures
-        return 1.0 / (interface_density + 1e-10)
 
     # Plot multiple views of the 3D data
     def plot_lattice(self, c, ax, t, i) -> None:
