@@ -1,4 +1,6 @@
 # Changelog
+## 0.3.2 - 2026-01-10
+- Added Phase field method for realising various morphologies arriving from phase field crystal, Cahn-Hilliard, Kuramoto-Sivashinsky equations and etc.
 
 ## 0.3.1 - 2025-12-04
 - Added substrate properties as degree of freedom in random-sequential-adsorption process.

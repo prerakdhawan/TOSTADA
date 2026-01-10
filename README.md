@@ -20,6 +20,7 @@ Generate disordered phase or point distributions with **prescribed spatial stati
 
 - **MEEP Plugins**: Export and simulate wave dynamics in disordered media using MIT's Finite-Difference Time-Domain (FDTD) Maxwell solver, _[MEEP](https://meep.readthedocs.io/)_ with custom plugins for particle-type distributions (for example, distribution of nanodisks) or phase-type distributions (for example, porous microstructures).
 - **Lattice Particle Method**: GPU-enabled in-house solver to model mechanical response and fracture mechanics in two-phase media for linear regime.
+- **Phase field method**: GPU-enabled phase field method for creating different morphologies arriving from phase field crystal, Swift-Hohenberg, Cahn-Hilliard equation etc.
 
 ### :bar_chart: Analysis
 - **Spatial Statistics Tools**: 

@@ -16,6 +16,7 @@ dependencies:
   - pymeep=*=mpi_mpich_*
   - matplotlib
   - jupyterlab
+  - ipywidgets=8.0.*
   - opencv
   - scipy
   - joblib
