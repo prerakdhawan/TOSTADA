@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='tostada',
-    version='0.3.0',
+    version='0.3.3',
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
     include_package_data=True,

@@ -735,9 +735,11 @@ class PointDistribution:
             #Box = X.tesselate_BoxSize()
             rxy_ = PointDistribution(self.tessellate(),diameter=diameter,BoxSize=self.tesselate_BoxSize())
             periodic_mask = 4*diameter
-            rxy_ = rxy_.zoom_in(xmin=-periodic_mask,xmax=self.BoxSize[0]+periodic_mask,
-                                ymin=-periodic_mask,ymax=self.BoxSize[1]+periodic_mask,
-                                zmin=-(periodic_mask)*self.is_3D,zmax=(self.BoxSize[2]+periodic_mask)*self.is_3D)
+            rxy_ = rxy_.zoom(Box = [
+                [-periodic_mask,self.BoxSize[0]+periodic_mask], 
+                [periodic_mask,self.BoxSize[1]+periodic_mask], 
+                [-(periodic_mask)*self.is_3D,(self.BoxSize[2]+periodic_mask)*self.is_3D]
+                ])
             factor=3
             padding=0
             Box = np.array(rxy_.BoxSize)

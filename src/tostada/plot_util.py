@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.ticker import ScalarFormatter
 from tostada.PhaseDistribution import PhaseDistribution
 from tostada.PointDistribution import PointDistribution
 import tostada.Statistics as stats
@@ -93,8 +94,8 @@ class Visualize:
                                     alpha=1)
         ax.add_collection(collection)
         ax.set_title('Point Distribution, mean interparticle distance = {D}'.format(D=self.distribution.dmean))
-        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
-        ax.set_ylabel('Y ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_xlabel('X ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\\mathrm{\\mu}$m)',fontsize=15)
         return ax
 
     def _plot_phasedistribution(self,ax,cmap):
@@ -109,8 +110,8 @@ class Visualize:
                             extent=[0,self.distribution.Lx,0,self.distribution.Lz], cmap=cmap)
         ax.figure.colorbar(cax,ax=ax)
         ax.set_title('Phase Distribution')
-        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
-        ax.set_ylabel('Z ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_xlabel('X ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax.set_ylabel('Z ($\\mathrm{\\mu}$m)',fontsize=15)
         return ax
     
     def _plot_spectraldensity(self,ax,kmax,
@@ -127,17 +128,17 @@ class Visualize:
                                    Xq[3][:,:,int(Xq[3].shape[2]/2)],vmax=vmax,cmap=cmap)
             
         ax[0].figure.colorbar(cax,ax=ax[0])
-        ax[0].set_title('Reciprocal Space, Spectral density $\\tilde{X}(\mathbf{q})$')#'Point Distribution, mean interparticle distance = {D}'.format(self.distribution.dmean))
-        ax[0].set_xlabel('$q_{x}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
-        ax[0].set_ylabel('$q_{y}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
+        ax[0].set_title('Reciprocal Space, Spectral density $\\tilde{X}(\\mathbf{q})$')#'Point Distribution, mean interparticle distance = {D}'.format(self.distribution.dmean))
+        ax[0].set_xlabel('$q_{x}$ ($\\mathrm{\\mu}$m$^{-1}$)',fontsize=15)
+        ax[0].set_ylabel('$q_{y}$ ($\\mathrm{\\mu}$m$^{-1}$)',fontsize=15)
         ax[0].set_xlim(-kmax,kmax)
         ax[0].set_ylim(-kmax,kmax)
 
         Xq_averaged = Xq_[1]
         ax[1].plot(Xq_averaged[:,0],Xq_averaged[:,1])
         ax[1].set_xlim(0,kmax)
-        ax[1].set_xlabel('|q| ($\mathrm{\mu}$m$^{-1}$)',fontsize=14)
-        ax[1].set_ylabel('$\\tilde{X}(|\mathbf{q}|)$',fontsize=14)
+        ax[1].set_xlabel('|q| ($\\mathrm{\\mu}$m$^{-1}$)',fontsize=14)
+        ax[1].set_ylabel('$\\tilde{X}(|\\mathbf{q}|)$',fontsize=14)
         return ax
     
     def _plot_structurefactor(self,ax,kmax,
@@ -155,16 +156,16 @@ class Visualize:
                                    vmax=vmax,cmap=cmap)
 
         ax[0].figure.colorbar(cax,ax=ax[0])
-        ax[0].set_title('Reciprocal Space, Structure Factor $S(\mathbf{q})$')
-        ax[0].set_xlabel('$q_{x}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
-        ax[0].set_ylabel('$q_{y}$ ($\mathrm{\mu}$m$^{-1}$)',fontsize=15)
+        ax[0].set_title('Reciprocal Space, Structure Factor $S(\\mathbf{q})$')
+        ax[0].set_xlabel('$q_{x}$ ($\\mathrm{\\mu}$m$^{-1}$)',fontsize=15)
+        ax[0].set_ylabel('$q_{y}$ ($\\mathrm{\\mu}$m$^{-1}$)',fontsize=15)
         ax[0].set_xlim(-kmax,kmax)
         ax[0].set_ylim(-kmax,kmax)
 
         ax[1].plot(self.distribution.Sq_averaged[:,0],self.distribution.Sq_averaged[:,1])
         ax[1].set_xlim(0,kmax)
-        ax[1].set_xlabel('|q| ($\mathrm{\mu}$m$^{-1}$)',fontsize=14)
-        ax[1].set_ylabel('$\\tilde{S}(|\mathbf{q}|)$',fontsize=14)
+        ax[1].set_xlabel('|q| ($\\mathrm{\\mu}$m$^{-1}$)',fontsize=14)
+        ax[1].set_ylabel('$\\tilde{S}(|\\mathbf{q}|)$',fontsize=14)
         return ax
     
     def _plot_g2r(self,ax, dr, Rmax,vmax,cmap):
@@ -172,16 +173,16 @@ class Visualize:
         G2r = self.distribution.RealSpaceCorrelations(dr=dr)
         cax = ax[0].pcolormesh(self.distribution.G2r[0],self.distribution.G2r[1],self.distribution.G2r[2],vmax=vmax,cmap=cmap)
         ax[0].figure.colorbar(cax,ax=ax[0])
-        ax[0].set_title('Pair correlation $G_{2}(\mathbf{r})$')
-        ax[0].set_xlabel('$x_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
-        ax[0].set_ylabel('$y_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
+        ax[0].set_title('Pair correlation $G_{2}(\\mathbf{r})$')
+        ax[0].set_xlabel('$x_{x}$ ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax[0].set_ylabel('$y_{x}$ ($\\mathrm{\\mu}$m)',fontsize=15)
         ax[0].set_xlim(-Rmax,Rmax)
         ax[0].set_ylim(-Rmax,Rmax)
 
         ax[1].plot(self.distribution.G2r_averaged[:,0],self.distribution.G2r_averaged[:,1])
         ax[1].set_xlim(0,Rmax)
-        ax[1].set_xlabel('|r| ($\mathrm{\mu}$m)',fontsize=14)
-        ax[1].set_ylabel('$G_{2}(|\mathbf{r}|)$',fontsize=14)
+        ax[1].set_xlabel('|r| ($\\mathrm{\\mu}$m)',fontsize=14)
+        ax[1].set_ylabel('$G_{2}(|\\mathbf{r}|)$',fontsize=14)
         return ax
     
     def _plot_ACF(self,ax, dr, Rmax,vmax,cmap):
@@ -197,16 +198,16 @@ class Visualize:
                                    self.distribution.ACF[3][:,:,self.distribution.ACF[3].shape[2]//2],
                                    vmax=vmax,cmap=cmap)
         ax[0].figure.colorbar(cax,ax=ax[0])
-        ax[0].set_title('ACF $(\mathbf{r})$')
-        ax[0].set_xlabel('$x_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
-        ax[0].set_ylabel('$y_{x}$ ($\mathrm{\mu}$m)',fontsize=15)
+        ax[0].set_title('ACF $(\\mathbf{r})$')
+        ax[0].set_xlabel('$x_{x}$ ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax[0].set_ylabel('$y_{x}$ ($\\mathrm{\\mu}$m)',fontsize=15)
         ax[0].set_xlim(-Rmax,Rmax)
         ax[0].set_ylim(-Rmax,Rmax)
         ACF_averaged = stats.angular_average(self.distribution.ACF,dr)
         ax[1].plot(ACF_averaged[:,0],ACF_averaged[:,1])
         ax[1].set_xlim(0,Rmax)
-        ax[1].set_xlabel('|r| ($\mathrm{\mu}$m)',fontsize=14)
-        ax[1].set_ylabel('ACF $(|\mathbf{r}|)$',fontsize=14)
+        ax[1].set_xlabel('|r| ($\\mathrm{\\mu}$m)',fontsize=14)
+        ax[1].set_ylabel('ACF $(|\\mathbf{r}|)$',fontsize=14)
         return ax#self.fig, self.ax
     
     def plot_principal_ACF(self,ax=None,fontsize=13):
@@ -218,7 +219,7 @@ class Visualize:
         ACF = self.distribution.compute_principal_ACF()
         for i in range(ACF.shape[0]):
             ax.plot(ACF[i][:,0],ACF[i][:,1],label='$C_{i}$'.format(i=i))
-        ax.set_xlabel('R ($\mathrm{\mu}$m)',fontsize=fontsize)
+        ax.set_xlabel('R ($\\mathrm{\\mu}$m)',fontsize=fontsize)
         ax.set_ylabel('ACF',fontsize=fontsize)
         ax.legend(fontsize=fontsize)
         return ax
@@ -255,7 +256,7 @@ class Visualize:
     @staticmethod
     def plot_polar(I_array, wvl_0,wvl_f,ax=None,vmax=None,cmap=None):
         """
-        Plot polar scattering data I(\theta,\lambda). Can be used for plotting:
+        Plot polar scattering data I(\\theta,\\lambda). Can be used for plotting:
             i) Angular-averaged Structure Factor as a function of wavelength and angle.
             ii) Angular-averaged form-factor (single object scattering) as a function of wavelength and angle.
             iii) Angle-resolved scattering from simulations or experiments
@@ -327,8 +328,8 @@ class Visualize:
             ax.plot(poly[:,0],poly[:,1],**kwargs)
 
         #ax.set_title('Detected objects/voids = {D}'.format(D=self.distribution.dmean))
-        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
-        ax.set_ylabel('Y ($\mathrm{\mu}$m)',fontsize=15)
+        ax.set_xlabel('X ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\\mathrm{\\mu}$m)',fontsize=15)
         return ax
 
 
@@ -392,6 +393,94 @@ class Visualize:
         ax.set_aspect('equal')
         ax.figure.colorbar(sm,ax=ax)
         ax.set_title('Minkowski structure metric $q_{s}$'.format(s=s),fontsize=14)
-        ax.set_xlabel('X ($\mathrm{\mu}$m)',fontsize=15)
-        ax.set_ylabel('Y ($\mathrm{\mathrm{\mu}}$m)',fontsize=15)
+        ax.set_xlabel('X ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\\mathrm{\\mathrm{\\mu}}$m)',fontsize=15)
+        return ax
+
+    def plot_fields(self,ind=None,ax=None, 
+                    cmap='turbo', vmax=None, vmin=None,
+                    field=['sigxx','sigxy','sigyy','sigvm','sigp1','sigp2', 'epsxx', 'epsxy','epsyy','u','v'],**kwargs):
+        """
+        Plots the stress/strain or displacements derived from `tostada.Physics.LatticeParticleMethod`. 
+        
+        Parameters
+        ----------
+        ind : int
+            Time integer for extracting the fields. 
+            If the simulation was quasi-static and reached convergence, this would be the last simulated time step. 
+            If the simulation was dynamic for fracture, this would be for to analyze damage or stresses at a given time.
+            Default is -1 (most recent state)
+
+        ax : matplotlib.axes, optional
+            Matplotlib axes. Can be used to combine several plots. If not provided, creates a new figure.
+
+        cmap : matplotlib.colormap
+            Name of matplotlib colormap
+        
+        vmax : float
+            Maximum value for the heatmap
+
+        vmax : float
+            Maximum value for the heatmap
+
+        field : str
+            Field to plot : stress, strain or displacements. Possible options are:
+            `sigxx` : xx component of stress tensor
+            `sigxy` : xy component of stress tensor
+            `sigyy` : yy component of stress tensor
+            `sigvm` : von Mises stress
+            `sigp1` : 1st principal component of stress tensor (1st eigenvalue)
+            `sigp2` : 2nd princpal component of stress tensor (2nd eigenvalue)
+            `epsxx` : xx component of strain tensor
+            `epsxy` : xy component of strain tensor
+            `epsyy` : yy component of strain tensor
+            `u` : u displacement
+            `v` : v displacement
+
+        **kwargs : additional (but optional) parameters for specifying strain computation and plotting
+
+        Returns
+        -------
+
+        ax : matplotlib.axes, optional
+            Matplotlib axes containing the detected polygons. Can be used to combine several plots. If not provided, creates a new figure.
+
+        """
+        import cupy as cp
+        options = np.array(['sigxx','sigxy','sigyy','sigvm','sigp1','sigp2','epsxx', 'epsxy','epsyy','u','v'])
+        field_descriptor = np.array(['Stress tensor : xx-component', 'Stress tensor : xy-component', 'Stress tensor : yy-component',
+                                'von Mises stress','Stress tensor : principal 1','Stress tensor : principal 2',
+                                'Strain tensor : xx-component','Strain tensor : xy-component','Strain tensor : yy-component',
+                                'Displacement : u','Displacement : v'
+                                ])
+        _i = float(np.where(options==field)[0])
+        ind = -1 if ind is None else ind
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 7))
+        if ('sig' in field):
+            field_data = self.distribution.sigma_history[ind,int(_i),:].copy()  
+                    
+        elif ('eps' in field):
+            sigma_blur = kwargs.get('sigma',None)
+            gradient_mode = kwargs.get('mode',None)
+            Eps = self.distribution.get_strains(sigma=sigma_blur, mode = gradient_mode) 
+            field_data = (Eps[int(_i - 6)].T.flatten()).copy() # -6 because the first 6 are the stresses
+
+        elif ( np.logical_or('v' in field, 'u' in field)):
+            uv = self.distribution.get_displacements()
+            field_data = uv[int(_i - 9)].copy()
+        field_data[self.distribution.exclusions] = np.nan    
+        if not hasattr(self, 'damage_hist'):
+            damage = self.distribution.exclusions
+        else:
+            damage = self.damage_hist[ind]
+        field_data[damage]=np.nan
+
+        _fig = ax.imshow(cp.asnumpy(self.distribution.reshape_fields(field_data)).T,origin='lower',cmap=cmap, interpolation='nearest',
+                  vmax=vmax,vmin=vmin,extent=[0,self.distribution.Lx,0,self.distribution.Ly])
+        cbar=ax.figure.colorbar(_fig,ax=ax)
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_powerlimits((0, 0))  # Forces scientific notation for all numbers
+        cbar.ax.yaxis.set_major_formatter(formatter)
+        ax.set_title('{md}, time={t}s'.format(t=np.around(self.distribution.iter_array[ind]*self.distribution.dt,10), md=field_descriptor[int(_i)]))
         return ax

@@ -1,4 +1,8 @@
 # Changelog
+
+## 0.3.3 - 2026-02-13
+- Added periodic simulations and homogenization options for mechanical module.
+
 ## 0.3.2 - 2026-01-10
 - Added Phase field method for realising various morphologies arriving from phase field crystal, Cahn-Hilliard, Kuramoto-Sivashinsky equations and etc.
 

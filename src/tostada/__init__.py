@@ -39,7 +39,7 @@ from .plot_util import Visualize #noqa : F401
 from .Optimization import Optimization # noqa : F401
 from .physics.meep_geometry import Meep_geometry # noqa : F401
 from .util.Utility import Spectrum # noqa : F401
-
+from .util.Utility import read_file # noqa : F401
 # TODO: define what is available with `from tostada import *`
 import jax
 print("Using JAX devices:", jax.devices())
