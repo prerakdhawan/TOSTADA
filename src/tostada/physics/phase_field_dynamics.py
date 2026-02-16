@@ -317,7 +317,7 @@ class PhaseField:
     
 
     # solver function with performance tracking
-    def solve(self, additional_mufunc=None, additional_func=None,compute_hyperuniformity=True,*args,**kwargs): 
+    def solve(self, additional_mufunc=None, additional_func=None,compute_hyperuniformity=True,target_dmean = None, *args,**kwargs): 
         """
         Time-evolution for the Phase field. Returns a `tostada.PhaseDistribution` object.
         """
@@ -352,13 +352,6 @@ class PhaseField:
             psi_ = psi_new
             t = np.round(t + self.dt, 6)
             
-            # Performance tracking
-            #if i % 500 == 0:
-            #    current_time = time()
-            #    elapsed = current_time - last_time
-            #    last_time = current_time
-            #    tqdm.write(f"Time for 500 iterations: {elapsed:.2f}s ({500/elapsed:.2f} it/s)")
-            
             # Only plot and save on specified intervals
             if i % self.frame_iter == 0:
                 current_time = time()
@@ -379,6 +372,8 @@ class PhaseField:
                     Dmean = X.Dmean_from_q()
                     #print ('FWHM={f}, Hyperuniformity={h}, Dmean={dm}'.format(f=stats[0],h=stats[1],dm=Dmean))
                     tqdm.write('Hyperuniformity={h}, Dmean={dm}'.format(h=stats,dm=Dmean))
+                    if (np.logical_and(target_dmean != None, Dmean > target_dmean)):
+                        break
                     # Calculate and print structure size metric
                 # Track evolution
                 times.append(t)

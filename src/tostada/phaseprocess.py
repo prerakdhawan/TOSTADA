@@ -1,5 +1,6 @@
 from tostada.PointDistribution import PointDistribution
 from tostada.PhaseDistribution import PhaseDistribution
+from tostada.physics.phase_field_dynamics import PhaseField
 from tostada.pointprocess import Pointprocess
 import tostada.Statistics as stats
 import tostada.util.Utility
@@ -29,40 +30,6 @@ class Phaseprocess:
         if (np.asarray(BoxSize).shape == ()):
             print ('Taking Lx,Ly,Lz=',BoxSize)
             self.BoxSize = [BoxSize]*(2*(np.logical_not(self.is_3D))+3*(self.is_3D))
-
-    def load_distribution(self,folder_path, keyword='', N=0):
-        """
-        Loads the 'N'th file from the input 'folder_path' with filename having the given 'keyword' and converts to a PhaseDistribution object. 
-        Uses the resolution that is either already present in the file (in npz format) or the user-provided.
-        Note: Similar to load_distribution method in pointprocess. See Utility.py for details into the function.
-
-        Parameters
-        ----------
-        folder_path : string
-            Path of the folder. Eg: /home/user/tostada/Examples or wherever the files are stored.
-        keyword : string
-            Particular keyword in the file. If not provided, takes the N=0 file from the folder. 
-        N : int
-            Nth file from the folder with the given keyword. Useful for parametric loading of files.
-
-        Returns
-        -------
-
-        PhaseDistribution object
-        """
-        data,filename = tostada.util.Utility.read_file(folder_path, keyword, N)
-
-        if 'resolution' in data:
-            #BoxSize = data['BoxSize']
-            resolution = data['resolution'] 
-        else:
-            resolution = self.resolution
-            print ('Resolution not found in file. Taking resolution={r}'.format(r=self.resolution))
-        if 'image' in data:
-            image = data['image']
-        else:
-            image = data
-        return PhaseDistribution(image=image,resolution=resolution)
 
     def GRF_microstructure(self,params,options=['gaussian']):
         """
@@ -202,3 +169,55 @@ class Phaseprocess:
 
         image = point_dist.Phaseobject(self.resolution,shapes='circle',is_periodic=is_periodic) #currently only supports circular 
         return PhaseDistribution(image,self.resolution)
+
+    def phasefield_microstructure(self, model=['cahn_hilliard','swift_hohenberg','ks_damped','pfc_hex','pfc_bcc','pfc_fcc','pfc_square','pfc_cubic'], 
+                                r = -0.5, q0=1, D = None, dt = None, num_iter = None, 
+                                frame_iter = None, seed=None, initial_state = None,
+                                additional_func = None, additional_mufunc = None, compute_hyperuniformity = True,
+                                *args, **kwargs):
+        """
+        Generate a PhaseDistribution object through a phase-field method simulation in `tostada.physics.phase_field_dynamics`. 
+        TODO : Not tested. Use `tostada.physics.phase_field_dynamics` if gives an error.
+
+        Parameters
+        ----------
+
+        model : str
+            The basic free energy term that needs to be minimized. Since the phase evolution hinges on free-energy minimization, perturbative terms 
+            can be added so long as the gradients w.r.t phase distribution (or the Chemical Potential) are analytic.
+            Current available options are `cahn_hilliard`,`swift_hohenberg`,`ks_damped`,`pfc_hex`,`pfc_bcc`,`pfc_fcc`,`pfc_square`,`pfc_cubic`
+
+        D : float, optional
+            Mobility or diffusion coefficient. Default: 1.0. A larger value implies faster simulation. For convergence, reduce dt appropriately.
+
+        num_iter : int, optional 
+            Number of time-stepping iterations. Default: 5000.
+        
+        dt : float, optional 
+            Time step size. Default: 0.001.
+        
+        frame_iter : int, optional 
+            Interval for saving, evaluating spectral density and plotting frames Default: 50. 
+            For 3D, keep this large as these are expensive evaluations and are only needed in few time steps.
+        
+        seed : int, optional, optional
+            Seed for the random initialization. Change for different outcomes.
+        
+        initial_state : ndarray, optional
+            Initialized state. If None, creates a random one with self.seed 
+
+        dt : float
+            Time step for each time iteration. Keep this small for stability. 
+            NOTE: Different chemical potentials require different dt as the stiffness of the PDE is different for each case.
+        
+        additional_func : list
+            List of additional perturbative function to the `func` and its arguments. The list must be arranged as [function_name, argument1, argument2, ...]. Default : None
+
+        additional_mufunc : python function
+            Perturbative python function for the chemical potential. Arguments and keyword arguments can be passed through args and kwargs. Default : None 
+        """
+        N = int(self.BoxSize[0]/self.resolution)
+        phase_field = PhaseField(N = N, p = 1 - 2*self.volumefraction, D = D, num_iter = num_iter, dt=dt, frame_iter = frame_iter, is_3D = self.is_3D, resolution = self.resolution, seed=seed, initial_state = initial_state)
+        phase_field.solve(additional_mufunc=additional_mufunc, additional_func=additional_func,
+                        compute_hyperuniformity=compute_hyperuniformity,target_dmean = self.interpore_distance, *args,**kwargs)
+        return phase_field.final_state

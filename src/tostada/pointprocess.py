@@ -25,47 +25,6 @@ class Pointprocess:
         self.diameter = diameter
         #if (np.mod(self.BoxSize/self.ax,2)!=0):
         #    self.BoxSize = int((self.BoxSize/self.ax)+1)*self.ax
-
-    def load_distribution(self,folder_path, keyword='', N=0):
-        """
-        Loads the 'N'th file from the input 'folder_path' with filename having the given 'keyword' and converts it to a PointDistribution object.
-        Uses the diameter and BoxSize that are either already present in the file (in npz format) or the user-provided.
-        Note: Similar to load_distribution method in phaseprocess. See Utility.py for details into the function.
-
-        Parameters
-        ----------
-        folder_path : str 
-            Path of the folder. Eg: /home/user/tostada/Examples or wherever the files are stored.
-        
-        keyword : str
-            Particular keyword in the file. If not provided, takes the N=0 file from the folder. 
-        
-        N : int
-            Nth file from the folder with the given keyword. Useful for parametric loading of files.
-
-        Returns
-        -------
-        PointDistribution object
-
-        """
-        data,filename = tostada.util.Utility.read_file(folder_path, keyword, N)
-        if 'BoxSize' in data:
-            #BoxSize = data['BoxSize']
-            BoxSize = data['BoxSize'].ravel()[0] #change this once point distributions are saved using PointDistribution.save_distribution()
-        else:
-            BoxSize = self.BoxSize
-            print ('Box Size not provided and not found in file. Taking [{x} x {y} x {z}].'.format(x=self.BoxSize[0],y=self.BoxSize[1],z=self.BoxSize[2]))
-        if 'diameter' in data:
-            diameter = data['diameter']
-        else:
-            diameter = self.diameter
-            print ('Diameter not provided and not found in file. Taking d={d}'.format(d=self.diameter))
-        if 'positions' in data:
-            positions = data['positions']
-        else:
-            positions = data
-        return PointDistribution(positions,diameter=diameter,BoxSize=BoxSize)
-
     
     def rect_lattice(self,noise=0,correlation_length=0,is_periodic=False):
         """
