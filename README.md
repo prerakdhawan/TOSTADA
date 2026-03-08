@@ -37,7 +37,7 @@ The package and its necessary dependencies can be downloaded by typing the follo
 
 For convenient installation, we recommend a conda package manager. To avoid a bulky Anaconda download, it is sufficient to download Miniconda. If not already downloaded on your system, follow the instructions given [**here**](https://www.anaconda.com/docs/getting-started/miniconda/main). Then, `cd` to the directory containing the source files and type:
 
-`conda env create -f environment_tostada.yml` 
+`conda env create -f environment.yml` 
 
 and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. After activating this environment, install the pip dependencies for JAX support using `pip install   "jax[cuda12]==0.8"   "jaxlib==0.8"   "jaxopt==0.8.5"   -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`. For seamless code development and research with tostada, it is advisable to now type in the terminal:
 

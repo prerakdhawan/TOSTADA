@@ -1,0 +1,35 @@
+name: tost
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy<2
+  - tmux
+  - cupy
+  - numba
+  - conda-build
+  - h5py
+  - autograd
+  - pyvista
+  - mpi4py
+  - mpich
+  - pymeep=*=mpi_mpich_*
+  - matplotlib
+  - jupyterlab
+  - ipywidgets=8.0.*
+  - opencv
+  - scipy
+  - joblib
+  - dask
+  - nlopt
+  - imagecodecs
+  - tifffile
+  - scikit-image
+  - meshio
+  - pyiron_workflow=0.15.4
+  - pip
+
+#pip install   "jax[cuda12]==0.8"   "jaxlib==0.8"   "jaxopt==0.8.5"   -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+# After the conda environment is created (test with `conda env list` and checking for tost), type the following command in the terminal:
+
+#conda-develop /home/yourname/folder/tostada/src
