@@ -8,8 +8,7 @@ import jax
 import jax.numpy as jnp
 import scipy.special as ss
 from skimage.morphology import disk,ball,binary_dilation
-#import cupy as cp
-#from cupyx.scipy.ndimage import binary_erosion
+from scipy.spatial import cKDTree
 from skimage.draw import line,polygon
 from scipy.spatial import Voronoi
 import pickle
@@ -61,22 +60,23 @@ class PointDistribution:
         self.particledensity = self.totalparticles / (self.BoxSize[0]*self.BoxSize[1]*self.BoxSize[2]**self.is_3D)  
         self.dmean = 1/np.power(self.particledensity,1/self.ndim) #mean inter-particle distance
 
-    def _save_distribution(self,folder_path, keyword=''):
+    def build_tree(self, is_periodic=True, z_periodicity = False):
         """
-        -----------Redundant ------------
-        Saves the current point-distribution object to the output folder_path with filename having given keyword. 
-        Future: Keep similar function in PhaseDistribution.
+        Build a k-nearest neighbour distance tree for the given positions in 2D/3D with/without periodic boundaries.
 
         Parameters
         ----------
-        folder_path (string): path of the folder. Eg: /home/user/tostada/Examples or wherever the files are stored.
-        keyword (string): Particular keyword in the file. If not provided, takes the N=0 file from the folder. 
-        N (int): Nth file from the folder with the given keyword. Useful for parametric loading of files.
+        is_periodic : bool
+            Should the tree assume periodic boundaries. NOTE : Creating a periodic tree does not imply the point distribution will obey the periodic condition as it is process-dependent.
+        z_periodicity : bool
+            Should the system obey periodic boundaries along z-direction. NOTE : a 3D object need not necessarily obey this as the system may be finite thickness along this dimension.
         """
-        filename = 'PointDist_N={N},{nd}D_{key}.npz'.format(N=self.totalparticles,nd=self.ndim,key=keyword)
-        _ = np.savez(folder_path+filename,diameter=self.diameter,BoxSize=self.BoxSize)
-        print ('File saved with filename={f}'.format(f=filename))
-        return None
+        positions = self.positions[:,:3] if self.is_3D else self.positions[:,:2]
+        if (is_periodic):
+            tree = cKDTree(positions, boxsize=[self.BoxSize[0],self.BoxSize[1],self.BoxSize[2]*z_periodicity])
+        else:
+            tree = cKDTree(positions)
+        return tree, positions 
 
     def save(self, filename):
         """
@@ -170,7 +170,27 @@ class PointDistribution:
         print ('Mean center-to-center distance = {d}'.format(d=Dmean))
         return np.float32(Dmean)
     
-    def get_morphological_parameters(self,smax=6,method='cvt',**kwargs):
+    def get_morphological_parameters(self,is_periodic = True, shift_vec=np.array([0,0]), **kwargs):
+        def isin_box(v):
+            return np.logical_and(np.greater(v, coords_min ), np.less(v, coords_max ) )
+        
+        vor = Voronoi(self.positions[:,:2]) if is_periodic==False else Voronoi(self.tessellate()[:,:2])
+        coords_max = np.array([self.BoxSize[0]/2 + shift_vec[0] ,self.BoxSize[1]/2 + shift_vec[1]  ])
+        coords_min = np.array([- self.BoxSize[1]/2 + shift_vec[1] , - self.BoxSize[1]/2 + shift_vec[1] ])
+        polygons=[]
+        for i, region_idx in enumerate(vor.point_region):
+            region = vor.regions[region_idx]
+            if -1 in region or len(region) == 0:
+                continue  # skip infinite regions
+            coords = [vor.vertices[i] for i in region]
+            coords = np.array(coords)
+            mask = np.bool(np.prod(isin_box(coords),axis=1))
+            coords = coords[mask]
+            if(coords.shape[0]>2):
+                polygons.append(coords[:,None])
+        return polygons, self.positions
+    
+    def compute_morphology(self,smax=6,**kwargs):
         """
         Construct a `Morphology` object containing the shape properties of the objects/voids. 
         Currently, yields center-of-mass (comparable to `self.positions`) of each arbitrarily shaped object/void, their interfacial length (perimeter) 
@@ -182,13 +202,6 @@ class PointDistribution:
         smax : int
             Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
 
-        method : str
-            Method to convert the underlying point distribution to `PhaseDistribution`. Available options are:
-            `cvt` : Centroidal Voronoi Tessellation (CVT). Relaxes the point distribution first before forming voronoi network.
-            `vor` : Directly constructs a voronoi network from the point distribution.
-            `tri` : Trivalent network. Uses Delaunay triangulation.
-            `circle` : Replaces points with identical circular pores of given radii.
-
         Returns
         -------
 
@@ -197,23 +210,10 @@ class PointDistribution:
             The detected objects can be visualized using `tostada.Visualize.plot_detected_polygons()`
         
         """
-        boundary_mask = kwargs.get('boundary_mask',None)
-        res = kwargs.get('res',0.01)
-        rad = kwargs.get('rad',10)
-        if (method=='cvt'):
-            distribution = self.Phaseobject_CVT(boundary_mask=boundary_mask, rad=rad,resolution=res)
-        elif (method=='vor'):
-            distribution = self.Phaseobject_voronoi(boundary_mask=boundary_mask, rad=rad,resolution=res)
-        elif (method=='tri'):
-            distribution = self.Phaseobject_trivalent(boundary_mask=boundary_mask, rad=rad,resolution=res)
-        elif (method=='circle'):
-            mode = 'periodic' if boundary_mask is None else boundary_mask
-            diameter = kwargs.get('diameter',self.diameter-5e-4) # minor tolerance to remove spuriously overlapping particles 
-            distribution = self.Phaseobject(dx=res,mode=mode,diameter=diameter)
-        
-        Mor = Morphology(distribution,smax)
+
+        Mor = Morphology(self,smax,**kwargs)
         self.morphology = Mor
-        print ('Morphology object created with method={m}'.format(m=method))
+        print ('Morphology object created')
         return Mor
     
     #Delete this after checking Optimization.py. Now implemented in Statistics.py        
@@ -632,7 +632,6 @@ class PointDistribution:
         G2data = jnp.concatenate((Grid,Gr[None,:,:]*kmax ), axis=0) 
         return G2data
 
-    #Move to statistics.py
     def overlap(self,D0,custom_pos=None):
         """
         Checks for overlapping particles in 2D/3D. 
@@ -736,9 +735,9 @@ class PointDistribution:
             rxy_ = PointDistribution(self.tessellate(),diameter=diameter,BoxSize=self.tesselate_BoxSize())
             periodic_mask = 4*diameter
             rxy_ = rxy_.zoom(Box = [
-                [-periodic_mask,self.BoxSize[0]+periodic_mask], 
-                [periodic_mask,self.BoxSize[1]+periodic_mask], 
-                [-(periodic_mask)*self.is_3D,(self.BoxSize[2]+periodic_mask)*self.is_3D]
+                [-periodic_mask + (-self.BoxSize[0]/2),(self.BoxSize[0]/2)+periodic_mask], 
+                [-periodic_mask + (-self.BoxSize[1]/2),(self.BoxSize[1]/2)+periodic_mask], 
+                [(-periodic_mask - self.BoxSize[2]/2)*self.is_3D ,(self.BoxSize[2]/2+periodic_mask)*self.is_3D]
                 ])
             factor=3
             padding=0
@@ -920,9 +919,9 @@ class PointDistribution:
         print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase
     
-    def lloyd_relaxation(self,points, n_iter=10, box=None):
-        """Run Lloyd's algorithm for CVT inside a periodic box."""
-        pts = points.copy()
+    def lloyd_relaxation(self,points=None, n_iter=10, box=None):
+        """Run Lloyd's algorithm inside a periodic box."""
+        pts = self.positions.copy() if points is None else points.copy()
         for _ in range(n_iter):
             vor = Voronoi(pts)
             new_pts = []

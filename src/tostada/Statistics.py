@@ -1,7 +1,8 @@
 import numpy as np
-import cv2
 from scipy.stats import binned_statistic,gaussian_kde,norm
 from skimage.morphology import ball,disk,dilation,binary_erosion
+from skimage import measure
+from scipy.spatial import cKDTree
 from scipy.ndimage import distance_transform_edt,zoom
 #from tostada.PointDistribution import PointDistribution
 import matplotlib.pyplot as plt
@@ -92,7 +93,7 @@ def dmean_from_qpeak(array,factor=np.sqrt(3)/2):
         1D spectral density. Could be passed from angular_average() or separately. 
 
     factor : float
-        Factor by which the 2\pi/q0 should be scaled to get dmean.
+        Factor by which the 2pi/q0 should be scaled to get dmean.
         If the peak is at q0, factor = 1 represents system closer to square lattice and (sqrt(3)/2) closest to hexagonal lattice.
 
     Returns
@@ -206,6 +207,56 @@ def MaternIII_distribution_function(x, alpha, beta=None):
          0]
     )
 
+def yukawa_potential_hard(x, eps, R1, R2, kappa, r_c):
+    """
+    Hard-sphere Yukawa potential function (DLVO). 
+
+    Parameters
+    ----------
+    x : float or ndarray  
+        Distance of the particle-pair. 
+    eps : float
+        Strength of the interaction.
+    R1 : float
+        Diameter of particle 1
+    R2 : float 
+        Diameter of particle 2
+    kappa : float
+        Inverse screening length of the interaction. For long-range interactions, kappa should be small (1/kappa is longer)
+    r_c : float
+        Critical length beyond which the distances are ignored
+ 
+    """
+    Dij = R1+R2
+    return np.piecewise(
+        x,
+        [x <= Dij, (x >= Dij) & (x <= r_c), x > r_c],
+        [1e10,
+         lambda x: eps*(((np.exp(-kappa * (x - Dij)))/(x/Dij)) - ((np.exp(-kappa*(r_c - Dij)))/(r_c/Dij))),
+         0])
+
+def harmonic_potential(pos,A,r0=0,axis=2):
+    """
+    Trapping potential for the particles along the direction of the axis. 
+
+    Parameters
+    ----------
+
+    pos :  float or ndarray
+        Position of the particle
+    
+    A : float
+        Strength of the trapping potential
+    
+    r0 : float 
+        Position along the axis where potential is minimum.
+
+    axis : int
+        Axis along which the potential is applied. Axis=0 for x-direction, 1 for y-direction and 2 for z-direction. Default : z-direction.
+    
+    """
+    coord = pos[axis]
+    return 0.5 * A * (coord-r0)**2
 
 class Morphology:
     """
@@ -227,46 +278,12 @@ class Morphology:
     def __init__(self, distribution=None,smax=6,**kwargs):
         self.distribution = distribution
         self.smax=smax
-        self.positions, self.polygons,self.psi,self.orientations = self.morphology()
+        self.positions, self.polygons,self.psi, self.orientations = self.morphology(**kwargs)
 
-    def morphology(self):
-        """
-        Detects arbitrary polygons in the phase distribution. For each shape, the center-of-mass and their polygon coordinates are returned. 
-        For circular objects/void, the polygons will approximate to discs for high resolutions. 
-
-        Returns
-        -------
-
-        positions : N x 2 array
-            Center of mass of each object. Can be used to create a `PointDistribution` object.
-
-        polygons : list
-            List of coordinates comprising each polygon. Can be used to study shape statistics with `structure_metrics()`.
-
-        """
-        contours,_=cv2.findContours(self.distribution.image.astype('uint8').T, cv2.RETR_TREE, 
-                                    cv2.CHAIN_APPROX_SIMPLE)  
-        centers = []
-        polygons = []
-        for contour in contours:
-            # Approximate contour to polygon
-            epsilon = self.distribution.resolution * cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, epsilon, True)
-            
-            # Get the moments to calculate the center
-            if (approx.shape[0]>2):
-                polygons.append(self.distribution.resolution*approx)
-            M = cv2.moments(approx)
-            if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                centers.append((cX, cY))
-            else:
-                cX, cY = 0, 0
-
-        positions = self.distribution.resolution*np.array(centers)
+    def morphology(self,**kwargs):
+        polygons,positions = self.distribution.get_morphological_parameters(**kwargs)
         psi,orientations = self.structure_metrics(polygons)
-        return positions,polygons,psi,orientations
+        return positions, polygons, psi, orientations
     
     @staticmethod
     def polygon_normals_and_lengths(polygon):
@@ -335,6 +352,27 @@ class Morphology:
             psi[i,0] = np.abs(psi_[0])
             thetas[i,:] = np.nan_to_num(np.angle(psi_)/s)
         return psi,thetas
+
+    def misorientation_angles(self, k_neighbors=6, target=np.pi/3):
+        """
+        Computes the mean angle of displacement for the given PointDistribution or PhaseDistribution. Can be used to study grain-boundaries in the system.
+        """
+        tree = cKDTree(self.positions)
+        # FIXED: dists first, then idx
+        pairlist = tree.query(self.positions, k=k_neighbors+1)[1]
+        misorientation_metric = np.zeros(len(self.positions))
+        for i in range(len(self.positions)):
+            # Use angular sort of k-nearest (not radius) for consistency
+            neigh_idx = pairlist[i, 1:k_neighbors+1]
+            if len(neigh_idx) < 3: continue
+            vecs = self.positions[neigh_idx] - self.positions[i]
+            angles = np.arctan2(vecs[:,1], vecs[:,0])  # angles with respect to x-axis
+            order = np.argsort(angles)
+            sorted_angles = angles[order]
+            diffs = np.diff(sorted_angles) # 3-point angles
+            diffs = np.append(diffs, sorted_angles[0] + 2*np.pi - sorted_angles[-1])
+            misorientation_metric[i] = np.mean(np.abs(diffs - target)) / target
+        return misorientation_metric
 
     def get_morphology_stats(self,ax=None,skipind=1,orientations=False,plot_results=True,**kwargs):
         """

@@ -134,7 +134,28 @@ class PhaseDistribution:
         self.Xq_averaged = stats.angular_average(self.Xq,dkx=2*np.pi/self.Lx)
         return self.Xq,self.Xq_averaged
     
-    def get_morphological_parameters(self,smax=6,**kwargs):
+    def get_morphological_parameters(self,**kwargs):
+        def isin_box(v):
+            return np.logical_and(np.greater(v, coords_min ), np.less(v, coords_max ) )
+        coords_max = np.array([self.BoxSize[0]-1 , self.BoxSize[1]-1  ])
+        coords_min = np.array([0 , 0 ])
+        level = kwargs.get('level',0.05)
+        contours = measure.find_contours(self.image,level)
+        tol = kwargs.get('tolerance',1)
+        polygons = []
+        for i in range(len(contours)):
+            poly = contours[i]
+            mask = np.bool(np.prod(isin_box(poly),axis=1))
+            #poly = poly[mask]
+            #if (np.logical_and(poly.shape[0]>2, np.bool(np.prod(mask)))):
+            if (np.bool(np.prod(mask))):
+                poly = measure.approximate_polygon(poly,tolerance=tol)[:,None]*self.resolution
+                polygons.append(poly)
+        properties = measure.regionprops(measure.label(self.image))
+        positions = np.array([p.centroid for p in properties])
+        return polygons, positions
+    
+    def compute_morphology(self,smax=6,**kwargs):
         """
         Construct a `Morphology` object containing the shape properties of the detected objects/voids. 
         Currently, yields center-of-mass of each arbitrarily shaped object/void, their interfacial length (perimeter) and the shape descriptors capturing the local s-fold symmetries in the system. 
@@ -154,7 +175,7 @@ class PhaseDistribution:
             The detected objects can be visualized using `tostada.Visualize.plot_detected_polygons()`
             
         """
-        Mor = Morphology(self,smax)
+        Mor = Morphology(self,smax, **kwargs)
         self.morphology = Mor
         print ('Morphology object created')
         return Mor
@@ -261,7 +282,7 @@ class PhaseDistribution:
         return self.ACF
 
 
-    def tesselate(self,copies=1):
+    def tessellate(self,copies=1):
         """
         Tesselate N copies of the image in 2D/3D. For periodicity. Similar to tesselated in PointDistribution.
         
@@ -271,8 +292,8 @@ class PhaseDistribution:
         """
         ranges = [np.arange(-copies, copies + 1) for _ in range(self.ndim)]
         grid = np.array(np.meshgrid(*ranges))
-        tesselated = np.kron(np.ones_like(grid[0]),self.image)
-        return tesselated
+        tessellated = np.kron(np.ones_like(grid[0]),self.image)
+        return tessellated
     
     def Hyperuniformity_data(self,pad=2,roi=20,fwhm=True):
         """

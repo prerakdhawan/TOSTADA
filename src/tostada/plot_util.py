@@ -311,7 +311,7 @@ class Visualize:
 
         """
         if not hasattr(self.distribution, 'morphology'):
-            mor = self.distribution.get_morphological_parameters(smax=smax,**kwargs)
+            mor = self.distribution.compute_morphology(smax=smax,**kwargs)
         else:
             mor = self.distribution.morphology
         #mor = Morphology(self.distribution,smax=smax,**kwargs)
@@ -333,7 +333,7 @@ class Visualize:
         return ax
 
 
-    def plot_structure_metric(self, s=6, smax=6, orientations=False,ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
+    def plot_structure_metric(self, s=6, plot_data = None, smax=6, orientations=False,ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
         """
         Plots the kth structure metric for each detected polygon from `Morphology`. These can be obtained using `structure_metrics()`. 
         
@@ -359,13 +359,13 @@ class Visualize:
             Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
         """
         if not hasattr(self.distribution, 'morphology'):
-            mor = self.distribution.get_morphological_parameters(smax=smax,**kwargs)
+            mor = self.distribution.compute_morphology(smax=smax,**kwargs)
         else:
             mor = self.distribution.morphology
         
         #mor = self.distribution.get_morphological_parameters(smax=smax,**kwargs) # Morphology(self.distribution,smax=smax,**kwargs)
-        psi = mor.psi #mor.structure_metrics(smax)
-
+        #psi = mor.psi #mor.structure_metrics(smax)
+        psi = mor.psi[:,s] if plot_data is None else plot_data
         if ax is None:
             fig = plt.figure(figsize=(9, 9))
             ax = fig.add_subplot(1,1,1)
@@ -376,8 +376,10 @@ class Visualize:
         if (orientations==True):
             values = mor.orientations[:,s]
         else:
-            values = psi[:,s]#np.asarray(values)
-        norm = plt.Normalize(vmin=0, vmax=1)
+            values = psi#np.asarray(values)
+        vmin = kwargs.get('vmin',0)
+        vmax = kwargs.get('vmax',1)
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
 
         colormap = cm.get_cmap(cmap)
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -483,4 +485,6 @@ class Visualize:
         formatter.set_powerlimits((0, 0))  # Forces scientific notation for all numbers
         cbar.ax.yaxis.set_major_formatter(formatter)
         ax.set_title('{md}, time={t}s'.format(t=np.around(self.distribution.iter_array[ind]*self.distribution.dt,10), md=field_descriptor[int(_i)]))
+        ax.set_xlabel('X ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax.set_ylabel('Y ($\\mathrm{\\mathrm{\\mu}}$m)',fontsize=15)
         return ax

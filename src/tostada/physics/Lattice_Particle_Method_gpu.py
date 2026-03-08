@@ -161,7 +161,7 @@ class LatticeParticleMethod:
         edge_ind = edge_ind[~np.isin(edge_ind, corner_ind)]
         return corner_ind,bulk_ind,edge_ind
 
-    def periodize_boundaries(self,Distance_pairs,Lx=None,Ly=None,only_inclusions=True):
+    def periodize_boundaries(self,Distance_pairs,Lx=None,Ly=None,only_inclusions=True,affine_matrix=cp.eye(2)):
         """
         Periodizes the input distance array based on the BoxSize of the simulation. 
         This essentially corrects the distances of the periodic particles assuming left-right and bottom-top periodic boundary pairs. This is needed since cKDtree does not give corrected lengths.
@@ -191,7 +191,6 @@ class LatticeParticleMethod:
         Distance_pairs_ = Distance_pairs.copy()
         Lx = self.Lx if Lx is None else Lx
         Ly = self.Ly if Ly is None else Ly
-
         inclusion_roi = cp.bool_(self.inclusions**only_inclusions)
         right_ind = cp.where(self.right_edge[inclusion_roi] )[0]
         left_ind = cp.where(self.left_edge[inclusion_roi] )[0]
@@ -203,10 +202,12 @@ class LatticeParticleMethod:
         _masktop = cp.isin(self.pairlist0_cp[inclusion_roi][top_ind],cp.where(self.bottom_edge)[0])
         _maskbottom = cp.isin(self.pairlist0_cp[inclusion_roi][bottom_ind],cp.where(self.top_edge)[0])
 
-        Distance_pairs_[left_ind] = Distance_pairs_[left_ind] + _maskleft[...,None] * cp.array([Lx,0])
-        Distance_pairs_[right_ind] = Distance_pairs_[right_ind] - _maskright[...,None] * cp.array([Lx,0])
-        Distance_pairs_[top_ind] = Distance_pairs_[top_ind] - _masktop[...,None] * cp.array([0,Ly])
-        Distance_pairs_[bottom_ind] = Distance_pairs_[bottom_ind] + _maskbottom[...,None] * cp.array([0,Ly])
+        shifts_lr = cp.array([Lx,0])@ affine_matrix
+        shifts_ud = cp.array([0,Ly])@ affine_matrix
+        Distance_pairs_[left_ind] = Distance_pairs_[left_ind] + _maskleft[...,None] * shifts_lr
+        Distance_pairs_[right_ind] = Distance_pairs_[right_ind] - _maskright[...,None] * shifts_lr
+        Distance_pairs_[top_ind] = Distance_pairs_[top_ind] - _masktop[...,None] * shifts_ud
+        Distance_pairs_[bottom_ind] = Distance_pairs_[bottom_ind] + _maskbottom[...,None] * shifts_ud
         return cp.asarray(Distance_pairs_)
 
     def get_spring_matrix(self):
@@ -288,7 +289,8 @@ class LatticeParticleMethod:
         if (self.is_periodic):
             L_x = kwargs.get('Lx',None)
             L_y = kwargs.get('Ly',None)
-            _Dnew = self.periodize_boundaries(Distance_pairs=_Dnew,Lx=L_x,Ly=L_y,only_inclusions=True)
+            affine_matrix = kwargs.get('affine_matrix',cp.eye(2))
+            _Dnew = self.periodize_boundaries(Distance_pairs=_Dnew,Lx=L_x,Ly=L_y,only_inclusions=True, affine_matrix=affine_matrix)
         __Dnew = cp.linalg.norm(_Dnew, axis=2)
         Dnew = cp.zeros([self.positions.shape[0],9])
         Dnew[_idx[:,0]] = __Dnew
@@ -637,7 +639,7 @@ class LatticeParticleMethod:
 
             self.positions = half_pos
 
-            Force_i, Forces = self.compute_local_properties(particle_roi,Lx=float(boxsize[0]),Ly=float(boxsize[1]))
+            Force_i, Forces = self.compute_local_properties(particle_roi,Lx=float(boxsize[0]),Ly=float(boxsize[1]), affine_matrix=affine_matrix)
             
             velocities = v0 + (dt)*(-damping_factor*v0  + (Force_ext - Force_i)/self.mass)
             self.positions = r0 + (dt/2)*(v0 + velocities)/2
@@ -848,43 +850,6 @@ class LatticeParticleMethod:
         Stresses = self.get_stresses(Force_pairs)
         Strains = self.get_strains()
         return 0.5*(Stresses[0]*Strains[0].T.flatten() + Stresses[1]*Strains[1].T.flatten() + Stresses[2]*Strains[2].T.flatten())
-
-    def effective_quantities(self, Force_pairs):
-        """
-        Effective global quantities. If the initial `PhaseDistribution` obeys periodicity, use `Homogenize()` instead.
-
-        Parameters
-        ----------
-
-        Force_pairs : (N x 6) array
-            Force on particle i due to its j neighbours. This is accesible as `self.Force_pairs` after running the quasi-static `self.run_sim()` or after `self.compute_local_properties()`.
-
-        Returns
-        -------
-        stress_conc : float
-            Global stress concentration in the system. Can be used to qualitatively predict potential failures. Higher the value, more localized stresses.
-
-        poisson_eff : float
-            Effective poisson ratio of the system
-
-        youngs_eff_xx : float
-            Effective young's modulus component xx
-        
-        youngs_eff_xy : float
-            Effective young's modulus component xy
-        
-        youngs_eff_yy : float
-            Effective young's modulus component yy
-
-        """
-        eps_xx,eps_xy,eps_yy = self.get_strains()
-        sigma_xx,sigma_xy,sigma_yy,sigma_vm,sigma_p1,sigma_p2 = self.get_stresses(Force_pairs)
-        youngs_eff_xx = np.mean(sigma_xx)/np.mean(eps_xx)
-        poisson_eff = -np.mean(eps_yy.flatten())/np.mean(eps_xx.flatten())
-        youngs_eff_xy = np.mean(sigma_xy)/np.mean(eps_xy)
-        youngs_eff_yy = np.mean(sigma_yy)/np.mean(eps_yy)
-        stress_conc = np.max(sigma_vm)/np.mean(sigma_vm[self.inclusions])
-        return stress_conc,poisson_eff,youngs_eff_xx,youngs_eff_xy,youngs_eff_yy
     
     def stress_from_constitutive_relations(self):
         """
@@ -1006,7 +971,7 @@ class LatticeParticleMethod:
 
     @staticmethod
     def Homogenize(phase, Mat, strain_rate, scale=1e-6,mode='plane-stress', 
-                thickness=1.0, tol = 0.005, courant_number=0.4, 
+                thickness=1.0, tol = 1e-5, courant_number=0.4, 
                 total_time = 1000, at_every = 100, save_states = False
                 ):
         """
@@ -1052,8 +1017,10 @@ class LatticeParticleMethod:
 
         Returns
         -------
-        Stiffness_mat : ndarray
-            The homogenized stiffness matrix of shape 3x3. 
+        Stiffness_matrix_eff : ndarray
+            The homogenized stiffness matrix of shape 3x3.
+        Compliance_matrix_eff : ndarray
+            The homogenized compliance matrix 
         Eps_h : ndarray
             Homogenized strain tensor. Each column summarizes the mean [epsxx,epsxy,epsyy] for the three tests.
         Sigma_h : 
@@ -1077,8 +1044,8 @@ class LatticeParticleMethod:
         epsxx,epsxy,epsyy = np.mean(Eps[0]), np.mean(Eps[1]), np.mean(Eps[2])
         Sigma = system.get_stresses(system.Force_pairs)
         sigmaxx,sigmaxy,sigmayy = np.mean(Sigma[0]),np.mean(Sigma[1]),np.mean(Sigma[2])
-        xloading_results = cp.asnumpy(cp.asarray([epsxx,2*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
-
+        xloading_results = cp.asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
+        stress_concx = cp.max(Sigma[3])/cp.mean(Sigma[3][system.inclusions])
         if (save_states==True):
             xload_state = system
         else:
@@ -1095,8 +1062,8 @@ class LatticeParticleMethod:
         epsxx,epsxy,epsyy = np.mean(Eps[0]), np.mean(Eps[1]), np.mean(Eps[2])
         Sigma = system.get_stresses(system.Force_pairs)
         sigmaxx,sigmaxy,sigmayy = np.mean(Sigma[0]),np.mean(Sigma[1]),np.mean(Sigma[2])
-        yloading_results = cp.asnumpy(cp.asarray([epsxx,2*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
-        
+        yloading_results = cp.asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
+        stress_concy = cp.max(Sigma[3])/cp.mean(Sigma[3][system.inclusions])
         if (save_states==True):
             yload_state = system
         else:
@@ -1105,7 +1072,7 @@ class LatticeParticleMethod:
         # 3) xy loading / shear
         print ('Simulating shear loading')
         system = LatticeParticleMethod(Phase=phase,Material=Mat,thickness=thickness,is_periodic=True)
-        affine_matrix = np.array([[1, strain_rate],[0,1]])
+        affine_matrix = np.array([[1, strain_rate],[1*strain_rate,1]])
         results = system.run_sim(particle_roi, cp.asarray(Force_roi ), is_velocity=True,
                                 num_steps=total_time,at_every=at_every, dt = courant_number*system.dtc,tolerance=tol, 
                                 affine_matrix=affine_matrix,damping_factor=0)
@@ -1113,8 +1080,8 @@ class LatticeParticleMethod:
         epsxx,epsxy,epsyy = np.mean(Eps[0]), np.mean(Eps[1]), np.mean(Eps[2])
         Sigma = system.get_stresses(system.Force_pairs)
         sigmaxx,sigmaxy,sigmayy = np.mean(Sigma[0]),np.mean(Sigma[1]),np.mean(Sigma[2])
-        xyloading_results = cp.asnumpy(cp.asarray([epsxx,2*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
-        
+        xyloading_results = cp.asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
+        stress_concxy = cp.max(Sigma[3])/cp.mean(Sigma[3][system.inclusions])
         if (save_states==True):
             xyload_state = system
         else:
@@ -1123,6 +1090,113 @@ class LatticeParticleMethod:
         Eps1,Sigma1,Eps2,Sigma2,Eps3,Sigma3 = xloading_results[:3], xloading_results[3:], yloading_results[:3], yloading_results[3:], xyloading_results[:3], xyloading_results[3:] 
         Eps_h = np.array([[Eps1[0],Eps2[0],Eps3[0]],[Eps1[2],Eps2[2],Eps3[2]], [Eps1[1],Eps2[1],Eps3[1]] ] )
         Sigma_h = np.array([[Sigma1[0],Sigma2[0],Sigma3[0]],[Sigma1[2],Sigma2[2],Sigma3[2]], [Sigma1[1],Sigma2[1],Sigma3[1]] ] )
-        Stiffness_mat = (Sigma_h@np.linalg.inv(Eps_h))/Mat.youngs_modulus
+        Stiffness_matrix_eff = (Sigma_h@np.linalg.inv(Eps_h)) 
+        hm_results = homogenization_results(effective_stiffness_voigt = Stiffness_matrix_eff, 
+                                            eps_h = Eps_h, sigma_h = Sigma_h, stress_conc = cp.asnumpy(cp.array([stress_concx,stress_concy, stress_concxy])),
+                                            xload_state=xload_state, yload_state = yload_state, xyload_state = xyload_state)
+        return hm_results
+    
+class homogenization_results:
+    """
+    Evaluate key hetergenous and homogeneous properties from a homogenized stiffness matrix. Computes the voigt/reuss bounds, anisotropy factor and directional material properties.
 
-        return Stiffness_mat,Eps_h, Sigma_h, xload_state,yload_state,xyload_state
+    Parameters
+    ----------
+    
+    effective_stiffness_voigt : ndarray
+        Effective stiffness matrix in the voigt notation (3x3 array in 2D). Can be obtained from a homogenization procedure.
+
+    xload_state, yload_state, xyload_state : tostada.LatticeParticleMethod object
+        Only for convenience for tracking the phase distribution and local field distributions.
+
+    sigma_h, eps_h : ndarray
+        Homogenized stress and strain tensors in voigt notation (3x3 array in 2D). Can be ignored.
+
+    """
+    def __init__(self, effective_stiffness_voigt=None,eps_h=None, sigma_h=None, stress_conc=None, xload_state=None, yload_state=None, xyload_state=None):
+        self.effective_stiffness_voigt, self.eps_h, self.sigma_h, self.xload_state, self.yload_state, self.xyload_state = effective_stiffness_voigt, eps_h, sigma_h, xload_state, yload_state, xyload_state
+        self.effective_compliance_voigt = np.linalg.inv(self.effective_stiffness_voigt)
+        self.stress_conc = stress_conc
+        self.compliance_matrix = self.build_compliance_matrix2D()
+        self.voigt_reuss_parameters()
+    
+    def save(self, filename):
+        """
+        Save the all the properties of the PointDistribution in a pickled state.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to be saved. The extension of the file need not be mentioned.
+        """
+        with open(filename+'.pkl', 'wb') as f:
+            pickle.dump(self,f)
+        print ('File saved with filename {f}'.format(f=filename+'.pkl'))
+
+    @staticmethod
+    def load(filename):
+        """
+        Load an instance of the saved PointDistribution created from PointDistribution.save().
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to be loaded. 
+        """
+        with open(filename+'.pkl', 'rb') as f:
+            A = pickle.load(f)
+            print ('File loaded with filename {f}'.format(f=filename+'.pkl'))
+        return A 
+    
+    def build_compliance_matrix2D(self):
+        compliance_matrix = np.zeros((2,2,2,2))
+        compliance_matrix[0,0,0,0] = self.effective_compliance_voigt[0,0]
+        compliance_matrix[1,1,1,1] = self.effective_compliance_voigt[1,1]
+        compliance_matrix[0,0,1,1] = compliance_matrix[1,1,0,0] = self.effective_compliance_voigt[0,1]
+        for i,j,k,l in [(0,1,0,1),(1,0,1,0),(0,1,1,0),(1,0,0,1)]:
+            compliance_matrix[i,j,k,l] = self.effective_compliance_voigt[2,2] / 4.0
+        return compliance_matrix
+
+    def voigt_reuss_parameters(self):
+        C = np.eye(3)*self.lpm_object.Y if self.effective_stiffness_voigt is None else self.effective_stiffness_voigt
+        S = self.effective_compliance_voigt # compliance matrix in voigt notation
+
+        # 2D Voigt (from stiffness)
+        K_V = (C[0,0] + C[1,1] + 2*C[0,1]) / 4.0
+        mu_V = (C[0,0] + C[1,1] - 2*C[0,1] + 4*C[2,2]) / 8.0
+
+        # 2D Reuss (from compliance)
+        K_R = 1.0 / (S[0,0] + S[1,1] + 2*S[0,1])
+        mu_R = 1.0 / (S[0,0] + S[1,1] - 2*S[0,1] + S[2,2])
+
+        # 2D isotropic equivalent E, nu
+        E_V = 4*K_V*mu_V / (K_V + mu_V)
+        E_R = 4*K_R*mu_R / (K_R + mu_R)
+        v_V = (K_V - mu_V) / (K_V + mu_V)
+        v_R = (K_R - mu_R) / (K_R + mu_R)
+
+        self.K_voigt, self.K_reuss = K_V, K_R
+        self.mu_voigt, self.mu_reuss = mu_V, mu_R
+        self.Y_voigt, self.Y_reuss = E_V, E_R
+        self.v_voigt, self.v_reuss = v_V, v_R
+
+        self.youngs_eff = np.array([np.sqrt(E_R*E_V), 0.5*(E_R+E_V)])
+        self.poisson_eff = np.array([np.sqrt(v_R*v_V), 0.5*(v_R+v_V)])
+        self.Anisotropy = np.sqrt( (K_V/K_R - 1)**2 + 2*(mu_V/mu_R - 1)**2 )
+        return None
+
+    def directional_properties(self,theta):
+        m = np.array([np.cos(theta), np.sin(theta)])
+        m_perp = np.array([-np.sin(theta), np.cos(theta)])
+        m_m = np.outer(m, m)
+        mp_mp = np.outer(m_perp,m_perp)
+        denom = np.einsum('ij,ijkl,kl->',m_m,self.compliance_matrix,m_m)
+        num = np.einsum('ij,ijkl,kl->',mp_mp,self.compliance_matrix,m_m)
+        youngs_directional, poisson_direction = 1/denom, - num/denom
+        return np.array([youngs_directional, poisson_direction])
+    
+    def get_angular_properties(self,theta=None):
+        if theta is None:
+            theta = np.linspace(0, 2*np.pi, 361)
+        props = np.array([self.directional_properties(t) for t in theta]) # ordered as (Y,nu)
+        return np.c_[theta,props] # ordered as (theta, Y, nu)

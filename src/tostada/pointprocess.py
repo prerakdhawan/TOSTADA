@@ -2,7 +2,7 @@ from tostada.PointDistribution import PointDistribution
 import autograd.numpy as np
 import scipy as sp
 import tostada.util.Utility
-from tostada.Statistics import RSA_distribution_function, MaternIII_distribution_function
+from tostada.Statistics import RSA_distribution_function
 import os
 from scipy.stats import binned_statistic,norm,cauchy,halfnorm
 
