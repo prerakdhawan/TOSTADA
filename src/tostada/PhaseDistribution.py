@@ -123,6 +123,34 @@ class PhaseDistribution:
         """
         self.image = np.logical_not(self.image)
         return None
+    
+    def zoom(self,Box):
+        """
+        Selects a given region from the phase distribution. Similar to the zoom function in `PointDistribution`.
+        
+        Parameters
+        ----------
+        
+        Box : list of floats
+            If shape == 'rect', allowed input is [[xmin,xmax], [ymin,ymax] [zmin,zmax]] where xmin,xmax, ... etc are the coordinates of the bounding box. If 2D, providing just xy is sufficient.  
+            If shape == 'circ', allowed input is [[x0,y0,z0],[R]] where [x0,y0,z0] are center coordinates and R is the radius of the bounding circle. If 2D, providing x0,y0 for center coordinates is sufficient.
+
+        Returns
+        -------
+        PointDistribution object: The M particles inside the newBoxSize with the same diameter.  
+        """
+
+        xmin,xmax = Box[0]
+        ymin,ymax = Box[1]
+        if (self.ndim==3):
+            zmin,zmax = Box[2]
+            newimage = self.image[int(xmin/self.resolution):int(xmax/self.resolution), 
+                                  int(ymin/self.resolution):int(ymax/self.resolution), 
+                                  int(zmin/self.resolution):int(zmax/self.resolution)]
+        else:
+            newimage = self.image[int(xmin/self.resolution):int(xmax/self.resolution), 
+                                  int(ymin/self.resolution):int(ymax/self.resolution) ]
+        return PhaseDistribution(newimage,resolution=self.resolution)
 
     def ReciprocalSpace(self):
         """

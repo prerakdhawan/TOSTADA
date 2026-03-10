@@ -77,7 +77,8 @@ class Pointprocess:
                     coords[i,1] = coords[i,1] + dy[j]*np.exp(-(rij/(2*correlation_length*self.ay+1e-5))**2)
                     coords[i,2] = self.is_3D*(coords[i,2] + dz[j]*np.exp(-(rij/(2*correlation_length*self.az+1e-5))**2))
         if (is_periodic==True):
-            pointconfig = PointDistribution(np.mod(coords,self.BoxSize[0]),self.diameter,self.BoxSize) 
+            pointconfig = PointDistribution(np.mod(coords,self.BoxSize[0]) - np.array(self.BoxSize)/2,self.diameter,self.BoxSize) 
+
         else:
             pointconfig = PointDistribution(coords[~out],self.diameter,self.BoxSize)
         return pointconfig

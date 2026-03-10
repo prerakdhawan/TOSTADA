@@ -283,7 +283,7 @@ class PointDistribution:
                                  f+pos, g+pos, h+pos),axis=0)        
         return adjacent #neighbors + itself
     
-    def tessellate(self, copies=1, cell_size=None):
+    def tessellate(self, copies=1, cell_size=None, return_dist=False):
         """
         Tessellate M copies of N particles in 2D/3D. Useful for periodic boundaries. Similar to tesselate in PhaseDistribution.
         
@@ -309,6 +309,8 @@ class PointDistribution:
         tessellated = tessellated.reshape(-1, self.ndim)  
         if (self.ndim==2):
             tessellated = np.column_stack([tessellated,np.zeros(tessellated.shape[0])])
+        if (return_dist==True):
+            tessellated = PointDistribution(tessellated,diameter=self.diameter,BoxSize=list(self.tesselate_BoxSize()) )
         return tessellated
     
     def tesselate_BoxSize(self,copies=1):
