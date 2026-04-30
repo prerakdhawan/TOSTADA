@@ -278,12 +278,12 @@ class Morphology:
     def __init__(self, distribution=None,smax=6,**kwargs):
         self.distribution = distribution
         self.smax=smax
-        self.positions, self.polygons,self.psi, self.orientations = self.morphology(**kwargs)
+        self.positions, self.polygons,self.psi, self.orientations, self.properties = self.morphology(**kwargs)
 
     def morphology(self,**kwargs):
-        polygons,positions = self.distribution.get_morphological_parameters(**kwargs)
+        polygons,positions,regionprops = self.distribution.get_morphological_parameters(**kwargs)
         psi,orientations = self.structure_metrics(polygons)
-        return positions, polygons, psi, orientations
+        return positions, polygons, psi, orientations, regionprops
     
     @staticmethod
     def polygon_normals_and_lengths(polygon):
@@ -326,7 +326,6 @@ class Morphology:
                 phi += 2*np.pi
             out.append((L, phi))
         return np.array(out)
-
 
     def structure_metrics(self,polygons):
         """
@@ -373,6 +372,27 @@ class Morphology:
             diffs = np.append(diffs, sorted_angles[0] + 2*np.pi - sorted_angles[-1])
             misorientation_metric[i] = np.mean(np.abs(diffs - target)) / target
         return misorientation_metric
+
+    def get_local_properties(self,options=['area','euler_number','orientation','eccentricity','perimeter']):
+        """
+        Gives the local properties of each detected region. Essentially a wrapper around skimage's regionprop.
+
+        Parameters
+        ----------
+        options : str
+            Quantity that needs to be evaluated for each detected morphological object. Possible options are:
+                area : area of each object
+                euler number : connectivity of the objects
+                eccentricity : anisotropy of the objects
+                perimeter : perimeter of the objects
+
+        Returns
+        -------
+        prop_array : M x 1 array
+            Array of M scalar values for each detected object. 
+        """
+        prop_array = np.array([getattr(p,options) for p in self.properties])
+        return prop_array
 
     def get_morphology_stats(self,ax=None,skipind=1,orientations=False,plot_results=True,**kwargs):
         """

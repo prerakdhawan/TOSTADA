@@ -377,8 +377,8 @@ class Visualize:
             values = mor.orientations[:,s]
         else:
             values = psi#np.asarray(values)
-        vmin = kwargs.get('vmin',0)
-        vmax = kwargs.get('vmax',1)
+        vmin = kwargs.get('vmin',0) if plot_data is None else kwargs.get('vmin',np.min(plot_data))
+        vmax = kwargs.get('vmax',1) if plot_data is None else kwargs.get('vmax',np.max(plot_data))
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
 
         colormap = cm.get_cmap(cmap)

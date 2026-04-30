@@ -181,7 +181,8 @@ class PhaseDistribution:
                 polygons.append(poly)
         properties = measure.regionprops(measure.label(self.image))
         positions = np.array([p.centroid for p in properties])
-        return polygons, positions
+        regionprops = properties
+        return polygons, positions, regionprops
     
     def compute_morphology(self,smax=6,**kwargs):
         """
