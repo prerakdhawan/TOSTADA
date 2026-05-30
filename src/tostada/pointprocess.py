@@ -23,9 +23,90 @@ class Pointprocess:
         if (np.isscalar(self.BoxSize)==True):
             self.BoxSize = [self.BoxSize,self.BoxSize,self.is_3D*self.BoxSize]
         self.diameter = diameter
+        self.particle_density = 1/np.power(self.ax,self.ndim) 
+        self.estimated_particles = int(self.particle_density * (self.BoxSize[0]*self.BoxSize[1]*self.BoxSize[2]**self.is_3D) )
         #if (np.mod(self.BoxSize/self.ax,2)!=0):
         #    self.BoxSize = int((self.BoxSize/self.ax)+1)*self.ax
     
+    def poisson_distribution(self,seed=None,is_periodic=True):
+        """
+        Generate a poisson-type point distribution.
+
+        Parameters
+        ----------
+
+        seed : int, optional
+            Random seed for reproducibility
+        
+        is_periodic : bool, optional
+            Condition for periodic boundaries. Default : True.
+        """
+        if seed is not None:
+            np.random.seed(seed)
+        coords = np.random.uniform(-1,1,[self.estimated_particles,self.ndim+1]) # since numbers are uncorrelated, the pts can be generated in 3D regardless
+        coords = coords*np.array(self.BoxSize)
+        if (is_periodic==True):
+            pointconfig = PointDistribution(np.mod(coords,self.BoxSize[0]) - np.array(self.BoxSize)/2,self.diameter,self.BoxSize) 
+        else:
+            pointconfig = PointDistribution(coords,self.diameter,self.BoxSize) 
+        return pointconfig
+
+    def hyperplane_intersection(self, seed=None):
+        """
+        Generate HIP (Hyperplane Intersection Process) point distribution. Such a distribution is anti-hyperuniform (S(q) diverges at q->0). 
+        First, random uniform lines are generated inside a box. If an intersection point of a pair of lines lies inside the box, the point is selected for the point distribution. 
+        The distribution is always wrapped inside the box and thus obeys periodic boundaries.
+        TODO : Currently only implemented for 2D.
+        ! Note : Due to nature of the process, the distribution may not have a fixed number of particles and statistical stability is not expected.
+        
+        Parameters
+        -----------
+
+        seed : int, optional
+            Random seed for reproducibility
+        
+        Returns
+        --------
+
+        tostada.PointDistribution 
+            
+        """
+        if seed is not None:
+            np.random.seed(seed)
+        
+        # Generate random lines in the Poisson line process
+        # Line representation: rho = x*cos(theta) + y*sin(theta)
+        num_lines = int(2 * self.BoxSize[0] * (1/self.ax) * np.pi)
+        num_lines = int ((self.BoxSize[0]/self.ax)) # along each axis
+        theta = np.random.uniform(0, np.pi, num_lines)
+        print(num_lines)
+
+        max_rho = self.BoxSize[0] * np.sqrt(2) / 2  # Half diagonal of the box
+        rho = np.random.uniform(-max_rho, max_rho, num_lines)
+
+        intersections = []
+        for i in range(num_lines):
+            for j in range(i + 1, num_lines):
+                theta1, theta2 = theta[i], theta[j]
+                rho1, rho2 = rho[i], rho[j]
+                
+                # Check if lines are nearly parallel
+                sin_diff = np.sin(theta2 - theta1)
+                if abs(sin_diff) < 1e-10:
+                    continue  # Skip nearly parallel lines
+                
+                # Calculate intersection point
+                x = (rho1 * np.sin(theta2) - rho2 * np.sin(theta1)) / sin_diff
+                y = (rho1 * np.cos(theta2) - rho2 * np.cos(theta1)) / -sin_diff
+                
+                # Keep points within the box
+                if 0 <= x <= self.BoxSize[0] and 0 <= y <= self.BoxSize[1]:
+                    intersections.append([x, y])
+        
+        points = np.array(intersections) if intersections else np.array([]).reshape(0, 2)
+        points = np.c_[points[:,0],points[:,1],np.zeros(points.shape[0])]
+        return PointDistribution(points-np.array(self.BoxSize)/2,diameter=self.diameter,BoxSize=self.BoxSize)
+
     def rect_lattice(self,noise=0,correlation_length=0,is_periodic=False):
         """
         Pertubed rectangular lattice in 2D or 3D. Perturbations can either be uniform for each lattice site or correlated by a correlation function. 
@@ -121,9 +202,13 @@ class Pointprocess:
                                   y_coords + np.random.uniform(low=-noise*(spacing/2),high=noise*(spacing/2),size=particle_num) ))
 
         # Filter points within the given width and height
-        coords = coords[(coords[:, 0] < self.BoxSize[0]) & (coords[:, 1] < self.BoxSize[1] )]
-        coords = np.c_[coords[:,0],coords[:,1],np.zeros(coords[:,0].shape[0])] #- (self.BoxSize/2)
-        pointconfig = PointDistribution(coords - np.array(self.BoxSize)/2,self.diameter,[self.BoxSize[0],self.BoxSize[1] ,0 ])
+        if (is_periodic==True):
+            coords = np.c_[coords[:,0],coords[:,1],np.zeros(coords[:,0].shape[0])] #- (self.BoxSize/2)
+            pointconfig = PointDistribution(np.mod(coords,self.BoxSize[0]) - np.array(self.BoxSize)/2,self.diameter,self.BoxSize)
+        else:
+            coords = coords[(coords[:, 0] < self.BoxSize[0]) & (coords[:, 1] < self.BoxSize[1] )]
+            coords = np.c_[coords[:,0],coords[:,1],np.zeros(coords[:,0].shape[0])] #- (self.BoxSize/2)
+            pointconfig = PointDistribution(coords - np.array(self.BoxSize)/2,self.diameter,[self.BoxSize[0],self.BoxSize[1] ,0 ])
         #pointconfig = PointDistribution(coords,self.diameter,[self.BoxSize, (np.max(coords[:,1]-np.min(coords[:,1]))) * np.sqrt(3) / 2  ])
         return pointconfig
     
