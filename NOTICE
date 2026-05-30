@@ -1,0 +1,22 @@
+Under Section 4(d) of the Apache License, any recipient who distributes or uses your code **must** read and preserve the contents of this file. This is where you explicitly request the patent citation.
+
+```text
+========================================================================
+Project Name: TOSTADA
+Copyright 2026 Martin Luther University
+========================================================================
+
+This product includes software developed by Prerak Dhawan 
+and hosted at: https://gitlab.informatik.uni-halle.de/mikromd/tostada
+
+PATENT AND PRIOR ART NOTICE:
+----------------------------
+Any entity, corporation, or individual utilizing, modifying, or 
+deriving works from this software for the purpose of drafting or 
+filing patent applications is requested and expected to formally cite 
+this repository as prior art within those patent documents.
+
+The primary author asserts full prior public disclosure of the concepts, 
+algorithms, and implementation logic contained within this repository 
+as of the date of its public commit history.
+```
