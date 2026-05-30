@@ -106,7 +106,7 @@ class PointDistribution:
             print ('File loaded with filename {f}'.format(f=filename+'.pkl'))
         return A 
         
-    def ReciprocalSpace(self,kmax,dkx=None):
+    def ReciprocalSpace(self,kmax,dkx=None,**kwargs):
         dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         """
         Computes the reciprocal space response of the given point-distribution. For details, refer to Sk_jax_custom.
@@ -121,6 +121,13 @@ class PointDistribution:
         dkx : float
             Reciprocal-space resolution.
 
+        kwargs: 
+        
+        Additional arguments for how to compute S(q). Possible inputs:
+        
+        batch_size
+            How to chunk the (qx,qy,qz,x,y,z) mesh for the computation. For large kmax or large spatial domains, use a large batch_size to avoid memory overload 
+
         Returns
         -------
 
@@ -130,7 +137,8 @@ class PointDistribution:
             Angular-average of the StructureFactor computed in Statistics.py.
 
         """
-        self.Sq = self.Sk_jax_custom(kmax=kmax)
+        batch_size=kwargs.get('batch_size',100)
+        self.Sq = self.Sk_jax_custom(kmax=kmax,batch_size_fac=batch_size)
         self.Sq_averaged = stats.angular_average(self.Sq,dkx)
         self.Sq_averaged = self.Sq_averaged[~np.isnan(self.Sq_averaged).any(axis=1)] #removes nan elements
         return self.Sq,self.Sq_averaged
@@ -188,7 +196,9 @@ class PointDistribution:
             coords = coords[mask]
             if(coords.shape[0]>2):
                 polygons.append(coords[:,None])
-        return polygons, self.positions
+
+        regionprops = None # relevant only in phase distributions
+        return polygons, self.positions, regionprops 
     
     def compute_morphology(self,smax=6,**kwargs):
         """
@@ -793,7 +803,7 @@ class PointDistribution:
         return PhaseDistribution(psi,dx)
     
     def Phaseobject_voronoi(self,resolution,
-                            rad=1, boundary_mask = None):
+                            rad=1, boundary_mask = None,skip_edges=None):
         """
         Creates a "2D" two-phase media from the point-pattern through Voronoi tessellation. Currently only implemented in 2D and with periodic boundaries.
         It finds the finite vertices from the Voronoi cells and dilates them using given radii to form a porous microstructure.
@@ -819,7 +829,8 @@ class PointDistribution:
         """
         def isin_box(v):
             return np.logical_and( (x_min < v[0] < x_max), (y_min < v[1] < y_max) )
-        vor = Voronoi(self.tessellate()[:,:2])
+        #vor = Voronoi(self.tessellate()[:,:2])
+        vor = Voronoi(self.tessellate()[:,:self.ndim])
         padding = int(1.0/resolution)*resolution
         resolution = (padding+self.BoxSize[0]+padding)/((padding+self.BoxSize[0]+padding)//resolution)
         x_min, x_max = - self.BoxSize[0]/2 - padding, self.BoxSize[0]/2 + padding
@@ -832,14 +843,18 @@ class PointDistribution:
             if isin_box(v0) and isin_box(v1):
                 valid_edges.append((v0, v1))
         valid_edges = np.array(valid_edges)
+        rand_edges = np.random.randint(0,valid_edges.shape[0],skip_edges) if skip_edges is not None else None
         psi = np.zeros([int((x_max-x_min)/resolution),int((y_max - y_min)/resolution) ])
-        #print (Phase.shape)
-        for v0, v1 in valid_edges:
+        #psi = np.zeros(np.int32(np.array(self.BoxSize)[:self.ndim]/resolution  ))
+        for i,(v0, v1) in enumerate(valid_edges):
             v0_ = np.int64((v0 + x_max)/resolution)
             v1_ = np.int64((v1 + x_max)/resolution)
                 #line(v0_,v0_[1])
             line_mask = line(v0_[0],v0_[1],v1_[0],v1_[1])
-            psi[line_mask] = 1
+            if (np.isin(i,rand_edges)):
+                continue
+            else:
+                psi[line_mask] = 1
         
         #psi = binary_dilation(psi[int(padding/resolution):-int(padding/resolution),
         #                            int(padding/resolution):-int(padding/resolution)],
@@ -921,26 +936,66 @@ class PointDistribution:
         print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase
     
-    def lloyd_relaxation(self,points=None, n_iter=10, box=None):
-        """Run Lloyd's algorithm inside a periodic box."""
-        pts = self.positions.copy() if points is None else points.copy()
+    def lloyd_relaxation(self, points=None, n_iter=10):
+        """
+        Lloyd's algorithm with periodic boundaries.
+        Keeps number of points FIXED.
+        """
+        if points is None:
+            pts = self.positions.copy()[:,:2]  
+        else:
+            pts = points.copy()
+        
+        Lx, Ly = self.BoxSize[:2]  
+        
         for _ in range(n_iter):
-            vor = Voronoi(pts)
-            new_pts = []
-            for i, region_index in enumerate(vor.point_region):
-                region = vor.regions[region_index]
+            pts_ = PointDistribution(pts,diameter=self.diameter,BoxSize=self.BoxSize)
+            tess_pts = pts_.tessellate()
+            vor = Voronoi(tess_pts[:,:self.ndim])
+            
+            new_pts = np.zeros_like(pts)
+            
+            for i in range(len(pts)):
+                idx = i + len(pts) * 4  # center copy is at offset 4 (dr=[0,0])
+                region_idx = vor.point_region[idx]
+                region = vor.regions[region_idx]
+                
                 if -1 in region or len(region) == 0:
+                    new_pts[i] = pts[i]
                     continue
+                
                 verts = vor.vertices[region]
-                if box is not None:
-                    # Clip to box if needed
-                    if np.any((verts[:,0] < box[0]) | (verts[:,0] > box[1]) |
-                            (verts[:,1] < box[2]) | (verts[:,1] > box[3])):
-                        continue
-                centroid = np.mean(verts, axis=0)
-                new_pts.append(centroid)
-            pts = np.array(new_pts)
+                
+                # Clip vertices to center box [-Lx/2, Lx/2] x [-Ly/2, Ly/2]
+                box = np.array([-Lx/2, Lx/2, -Ly/2, Ly/2])
+                masked_verts = verts[
+                    (verts[:, 0] >= box[0]) & (verts[:, 0] <= box[1]) &
+                    (verts[:, 1] >= box[2]) & (verts[:, 1] <= box[3])
+                ]
+                
+                if len(masked_verts) < 3:
+                    new_pts[i] = pts[i]  # Keep original
+                else:
+                    # Compute centroid of clipped vertices
+                    centroid = np.mean(masked_verts, axis=0)
+                    
+                    # WRAP centroid to periodic box
+                    centroid = centroid + np.array([Lx/2, Ly/2])  # shift to [0, L]
+                    centroid = centroid % np.array([Lx, Ly])       # periodic wrap
+                    centroid = centroid - np.array([Lx/2, Ly/2])   # shift back to [-L/2, L/2]
+
+                    new_pts[i] = centroid
+            pts = new_pts
         return pts
+
+    def relax_points(self,points=None,n_iter=10):
+        """
+        Relax the original point distribution through the Lloyd algorithm.
+        """
+        pts = self.lloyd_relaxation(points,n_iter)
+        print ('Relaxed point distribution by {n} iterations'.format(n=n_iter))
+        self.positions = pts
+        return None
 
     def Phaseobject_CVT(self, resolution, rad=1, n_lloyd=10, boundary_mask=None):
         """
