@@ -20,18 +20,22 @@ class Optimization:
         ----------
         Distribution : obj
             The PointDistribution object whose positions need to be tuned.
+        
         Qmax : float
             Maximum Q for which Sq needs to be computed.
-        Target: ndarray, optional
+        
+        Target : ndarray, optional
             Target to be matched for optimization. If None, uses simply S(q). If 1D, uniformly interpolates to a 2D grid.
+        
         """
         self.Distribution = Distribution
         self.init_positions = self.Distribution.positions[:,:-1] #Positions before the optimization. z-coordinate ignore currently
         self.Target = Target
         self.Qmax = Qmax
+        self.D0 = self.Distribution.diameter
+        self.q_i = 2*jnp.pi/self.Distribution.BoxSize[0]
 
-
-    def optimize(self, q_f, maxiter=1000, tol=1e-8, D0=None, positions=None, masked_pos=None):
+    def optimize(self, q_f, maxiter=1000, tol=1e-8, D0=None, positions=None, masked_pos=None, mask_mode = 'radial',**kwargs):
         """
         Optimizes the positions of the scatterers to the input Target. 
         
@@ -49,9 +53,20 @@ class Optimization:
             Specific positions that need to be optimized. If None, uses positions from self.Distribution. If None, uses self.positions
         masked_pos : ndarray, optional
             Positions that need to be considered for objective function (and gradients) but that are fixed during optimization. Default : None
+        mask_mode : bool, optional
+            Shape of the ROI in the reciprocal space. Currently allowed inputs are 'radial' and 'square'. Default : 'radial'
+
+        kwargs
+        ------
+        q_f2 : float, optional
+            q_f along the y direction. 
+        
+        g_trend : str, optional
+            Trends for pair-correlation weights. Possible inputs: 'radial' (1-r/D) and 'exp' (exp(-r/D)^2)
         """
         inputs = self.init_positions.flatten() if positions is None else positions.flatten()
-        D0 = self.Distribution.diameter if D0 is None else D0
+        D0 = self.D0 if D0 is None else D0
+        self.current_iter=0
         #ub = jnp.c_[jnp.ones(self.Distribution.totalparticles)*(self.Distribution.BoxSize[0]/2),
         #            jnp.ones(self.Distribution.totalparticles)*(self.Distribution.BoxSize[0]/2)].ravel()
         #lb =jnp.c_[-jnp.ones(self.Distribution.totalparticles)*(self.Distribution.BoxSize[0]/2),
@@ -61,7 +76,7 @@ class Optimization:
         lb =jnp.c_[-jnp.ones(inputs.shape[0]//2)*(self.Distribution.BoxSize[0]/2),
                    -jnp.ones(inputs.shape[0]//2)*(self.Distribution.BoxSize[1]/2)].ravel()
         bounds=jnp.vstack([lb,ub])
-        wrapped_objective = lambda inputs: self.objective_with_custom_grad(inputs, D0, q_f, masked_pos)
+        wrapped_objective = lambda inputs: self.objective_with_custom_grad(inputs, D0, q_f, masked_pos,mask_mode=mask_mode, **kwargs)
         opt = ScipyMinimize(fun=wrapped_objective,method='L-BFGS-B',value_and_grad=True,maxiter=maxiter,tol=tol,options=dict({'disp':True}) ,jit=False)
         result = opt._run(inputs,bounds=bounds) #for scipyminimize
         optimized = result.params.reshape((-1, 2))
@@ -70,17 +85,65 @@ class Optimization:
         print("Current phi =", result.state)
         return result.state, optimized 
 
-    def objective_with_custom_grad(self,inputs,D0,q_f,masked_pos):
+    def objective_with_custom_grad(self,inputs,D0,q_f,masked_pos,mask_mode,**kwargs):
         """
         Returns the value of the objective function along with its gradient. 
         Gradient is computed using a custom function (only implemented for PointDistribution currently)
         """
-        q_i = 2*jnp.pi/self.Distribution.BoxSize[0]
-        value = self.Objective(inputs,D0,q_i,q_f,masked_pos)
-        grad = self.custom_grad(inputs,D0,q_i,q_f,masked_pos)
+        self.current_iter = self.current_iter+1
+        value = self.Objective(inputs,D0,q_f,masked_pos,mask_mode=mask_mode,**kwargs)
+        grad = self.custom_grad(inputs,D0,q_f,masked_pos,mask_mode=mask_mode,**kwargs)
+        if (np.mod(self.current_iter,5)==0):
+            print ('Current iteration : {i}, Objective = {ob} with gradient = {gr}'.format(i=self.current_iter,ob=value,gr=np.abs(grad)))
         return value, grad
 
-    def Objective(self,pos, D0, q_i,q_f,masked_pos=None):
+    @staticmethod
+    def weights_gterm(_cdist,D0,trend=['linear','exp']):
+        if (trend=='linear'):
+            weights=jnp.maximum(0,1-_cdist/D0)
+        elif (trend=='exp'):
+            weights = jnp.exp(-(_cdist/D0)**2/0.5) 
+        return weights
+    
+    @staticmethod
+    def weights_sterm(Sq_term):
+        weights = jnp.where(Sq_term>0,1,0)
+        return weights
+
+    def pair_correlation_objective(self,D0,**kwargs):
+        Sq = kwargs.get('Sq',self.Sq)
+        Gr = self.Distribution.pair_corr_Sq_jax(Sq) 
+        self.Gr = Gr
+        _cdist = jnp.hypot(self.Gr[1],self.Gr[0])
+        trend = kwargs.get('g_trend','linear')
+        weights = self.weights_gterm(_cdist,D0,trend=trend)
+        f_term = jnp.abs(jnp.fft.fftshift(jnp.fft.fft2(weights/jnp.sum(weights))))
+        gterm = 1/(jnp.size(f_term)) * jnp.sum(f_term*(Sq[2]-1))
+        return gterm
+
+    def grad_pair_correlation_objective(self,D0,**kwargs):
+        Gr = kwargs.get('Gr',self.Gr)
+        _cdist = jnp.hypot(Gr[1],Gr[0])
+        trend = kwargs.get('g_trend','linear')
+        weights = self.weights_gterm(_cdist,D0,trend=trend)
+        f_term = jnp.abs(jnp.fft.fftshift(jnp.fft.fft2(weights/jnp.sum(weights))))
+        dgterm = 1/(jnp.size(f_term))*jnp.ravel((f_term))
+        return dgterm
+
+    def mask_Sq(self,Sq,q_f,q_f2=None,mode='radial'):
+        
+        qdist = jnp.hypot(Sq[0], Sq[1])
+        if (mode=='radial'):
+            masked_S = jnp.where(jnp.logical_or((qdist >= q_f),
+                                                (qdist <= self.q_i)), 0, Sq[2])
+        elif (mode=='rect'):
+            q_f2 = q_f if q_f2 is None else q_f2
+            masked_S = jnp.where(jnp.logical_and(jnp.abs(Sq[0])<=q_f,jnp.abs(Sq[1])<=q_f2 ), Sq[2],0 )
+            #masked_S[qdist<=self.q_i] = 0
+            masked_S = jnp.where(qdist<=self.q_i,0,masked_S)
+        return masked_S
+
+    def Objective(self,pos, D0, q_f,masked_pos=None,mask_mode='radial',**kwargs):
         """
         Objective function for the optimization. Includes overlap condition and a Target. Currently only implemented for particle-distributions. 
 
@@ -93,8 +156,6 @@ class Optimization:
         Q : float
             Maximum Q value to be used for S(q) computation. 
             Since pair-correlation is evaluated from S(q), higher the Q, better the resolution for g2(r).
-        q_i : float
-            Minimum q value in the masked region. 
         q_f : float
             Maximum q value in the masked region. If Target=None, S( q_i < q < q_f ) = 0 (Stealthy HuD)
         masked_pos : ndarray, optional
@@ -104,25 +165,19 @@ class Optimization:
             pos = pos.reshape((-1, 2))
 
         total_pos = pos if masked_pos is None else jnp.vstack([pos,masked_pos])
-        Sq = self.Distribution.Sk_jax_custom(custom_pos=total_pos, kmax=self.Qmax,batch_size_fac=100)
-        Gr = self.Distribution.pair_corr_Sq_jax(Sq) #Sq needs to include neighbours, if any
-        _cdist = jnp.hypot(Gr[1],Gr[0])
-        #Gr_masked = jnp.where(_cdist > D0, 0,(Gr[2]))
-        weights=jnp.maximum(0,1-_cdist/D0)
-        f_term2i = jnp.abs(jnp.fft.fftshift(jnp.fft.fft2(weights/jnp.sum(weights))))
-        Sq_masked = jnp.where(jnp.logical_or((jnp.hypot(Sq[0], Sq[1]) >= q_f),
-                                            (jnp.hypot(Sq[0], Sq[1]) <= q_i)), 0, Sq[2])
-        
-        _Target = jnp.zeros_like(Sq_masked) if self.Target is None else jnp.where(jnp.logical_or((jnp.hypot(Sq[0], Sq[1]) >= q_f),(jnp.hypot(Sq[0], Sq[1]) <= q_i)), 0, self.Target[2])
-        
-        weights2 = jnp.where(Sq_masked>0,1,0)
-        gterm = 1/(jnp.size(f_term2i)) * jnp.sum(f_term2i*(Sq[2]-1)) #Sq term here needs to include neighbours, if any
+        batch_size_fac = kwargs.get('batch_size',100)
+        Sq = self.Distribution.Sk_jax_custom(custom_pos=total_pos, kmax=self.Qmax,batch_size_fac=batch_size_fac)
+        self.Sq = Sq
+        Sq_masked = self.mask_Sq(Sq,q_f,mode=mask_mode)
+        _Target = jnp.zeros_like(Sq_masked) if self.Target is None else self.mask_Sq(self.Target,q_f,mode=mask_mode)
+        weights2 = self.weights_sterm(Sq_masked) #jnp.where(Sq_masked>0,1,0)
         #_Target = Target[2]*weights2
         sterm = jnp.sum(weights2*(Sq_masked -_Target)**2/jnp.sum(weights2))#  
+        gterm = 0 if D0 == 0 else self.pair_correlation_objective(D0=D0,Sq=Sq,**kwargs) 
         phi = sterm + gterm
         return phi
 
-    def custom_grad(self,pos,D0, q_i,q_f,masked_pos=None):
+    def custom_grad(self,pos,D0, q_f,masked_pos=None,mask_mode='radial',**kwargs):
         """
         Gradient function for matching reciprocal-space response + avoiding overlap. 
         Since overlap condition uses ifft of S(q), overlap is avoided with periodic boundaries too.
@@ -134,8 +189,7 @@ class Optimization:
         y = jnp.array(pos[:, 1], dtype=jnp.float32)  # Changed from jnp.cast
         xt = jnp.array(total_pos[:, 0], dtype=jnp.float32)  # Changed from jnp.cast
         yt = jnp.array(total_pos[:, 1], dtype=jnp.float32)  # Changed from jnp.cast
-        Sq = self.Distribution.Sk_jax_custom(custom_pos=total_pos, kmax=self.Qmax,batch_size_fac=80)
-        G2r = self.Distribution.pair_corr_Sq_jax(Sq) #,kmax=Q)
+        Sq = kwargs.get('Sq',self.Sq)
         Kx=jnp.ravel(Sq[0])
         Ky= jnp.ravel(Sq[1])
         k_shape = Kx.shape[0]
@@ -162,17 +216,15 @@ class Optimization:
         nkreal = jnp.sum(term_real_t,axis=0)
         nkimag = jnp.sum(term_imag_t,axis=0)
         nk = nkreal - 1j*nkimag #jnp.sum(term_real_t,axis=0) - 1j*jnp.sum(term_imag_t,axis=0)
-        del term_real, term_imag
-        _cdist = jnp.hypot(G2r[1],G2r[0])
-        kdist = jnp.hypot(Sq[0],Sq[1])
-        Sq_masked = jnp.where(jnp.logical_or((kdist >= q_f),(kdist <= q_i)), 0,(Sq[2])) 
-        _Target = jnp.zeros_like(Sq_masked) if self.Target is None else jnp.where(jnp.logical_or((kdist >= q_f),(kdist <= q_i)), 0, (self.Target[2])) 
-        weights1 = jnp.where(Sq_masked>0,1,0)
-        weights2=jnp.maximum(0,1-_cdist/D0)
-        f_term2i = jnp.abs(jnp.fft.fftshift(jnp.fft.fft2(weights2/jnp.sum(weights2))))
+
+        Sq_masked = self.mask_Sq(Sq,q_f,mode=mask_mode) #!jnp.where(jnp.logical_or((kdist >= q_f),(kdist <= self.q_i)), 0,(Sq[2])) 
+        weights1 = self.weights_sterm(Sq_masked) #!jnp.where(Sq_masked>0,1,0)
+        _Target = jnp.zeros_like(Sq_masked) if self.Target is None else self.mask_Sq(self.Target,q_f,mode=mask_mode)
+
         f_term1 = (weights1*((Sq_masked)-_Target) ).flatten()/jnp.sum(weights1) 
-        factor = 1/(jnp.size(f_term2i))
-        fk = 2*f_term1+factor*jnp.ravel((f_term2i))
+
+        dgterm = 0 if D0==0 else self.grad_pair_correlation_objective(D0=D0,**kwargs)
+        fk = 2*f_term1+dgterm
         large_term = np.array(term * nk)
         large_term = large_term * np.array(fk)
         #large_term = jnp.array(large_term)
@@ -195,7 +247,7 @@ class Optimization:
             grad_approx = grad_approx.at[i].set((f_fwd - f_bwd) / (2 * epsilon))
         return grad_approx
 
-    def interpolate_Target1D(self,Sq_target):
+    def interpolate_Target1D(self,Sq_target,**kwargs):
         """
         Interpolate the 1D target function to a 2D grid. Assumes isotropy in reciprocal space. The 2D grid has resolution of 2\\pi/ PointDistribution.BoxSize
         
@@ -206,7 +258,8 @@ class Optimization:
         """
         Sq_ = np.vstack([np.array([0,0]),Sq_target]) # Added S(0)=0 for full interpolation range
         Sq_int = interp1d(Sq_[:,0],Sq_[:,1])
-        Target_grid = self.Distribution.Sk_jax_custom(kmax=self.Qmax)
+        batch_size_fac = kwargs.get('batch_size',100)
+        Target_grid = self.Distribution.Sk_jax_custom(kmax=self.Qmax,batch_size_fac=batch_size_fac)
         Sq_target_int = Sq_int(jnp.hypot(Target_grid[0],Target_grid[1]))
         return np.asarray([Target_grid[0], Target_grid[1], Sq_target_int])
 
