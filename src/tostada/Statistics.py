@@ -4,6 +4,7 @@ from skimage.morphology import ball,disk,dilation,binary_erosion
 from skimage import measure
 from scipy.spatial import cKDTree
 from scipy.ndimage import distance_transform_edt,zoom
+from scipy.optimize import curve_fit
 #from tostada.PointDistribution import PointDistribution
 import matplotlib.pyplot as plt
 
@@ -39,8 +40,8 @@ def angular_average(data,dkx):
     data_avg[:,0]=S_kk[:-1]
     data_avg[:,1]=S_ks[:-1]
     return data_avg
-
-def fwhm_and_H(array,pad=2,roi=20,fwhm=True):
+    
+def fwhm_and_H(array,hud_class = False,pad=2,roi=20,q_ind_max = 4,fwhm=True, smooth = False, smooth_window = 5, peak_factor=0.5, fit_param=False):
     """
     Computes Full-width at Half Maximum (FWHM) and Hyperuniformity index H of the reciprocal data from a 1D SpectralDensity. Useful only for HuD type process.
     H is simply the smallest X(q) / largest X(q) and describes how strongly the structure is hyperuniform. 
@@ -64,23 +65,61 @@ def fwhm_and_H(array,pad=2,roi=20,fwhm=True):
     H : float
         Hyperuniformity index
     """
+    def moving_average(y, w):
+        if w <= 1:
+            return y.copy()
+        kernel = np.ones(w, dtype=float) / float(w)
+        ys = np.convolve(y, kernel, mode="same")
+        return ys
+    
+    def powerlaw(q, A, alpha):
+        return A * q**alpha
+
+    def linearlaw(q,A,c):
+            return A*q + c
+    
     array = array[(np.isnan(array)==False)[:,0]]
-    pad = pad # M pixels away from zeroth peak (since X(0)=N)
+    pad = pad # M pixels away from zeroth peak 
+    q = array[pad:q_ind_max,0]
+    y = array[pad:q_ind_max,1]
+    y_peak = moving_average(y, smooth_window) if smooth else y.copy()
+    popt, _ = curve_fit(
+                        linearlaw, 
+                        q,
+                        y_peak,
+                        p0=(1,2),
+                        bounds=([0.0, 0.0], [np.inf, 8.0]),
+                        maxfev=20000,
+                    )
+
+    H = popt[1]/np.max(array[pad:,1])
+    if hud_class==True:
+        popt_class, _ = curve_fit(
+                    powerlaw, 
+                    q,
+                    y_peak,
+                    p0=(1,2),
+                    bounds=([0.0, 0.0], [np.inf, 8.0]),
+                    maxfev=20000)
+        HU_data = np.array([H,popt_class[0],popt_class[1]])
+    else:
+        HU_data = H
+
+    if (fit_param==True):
+        print ('fit parameters for linear trend = {p}'.format(p=popt))
+        if (hud_class==True):
+            print ('fit parameters for class trend = {p}'.format(p=popt_class))
     max_value = np.max(array[pad:,1])
     max_ind = np.where(array==max_value)[0]
-    min_ind = np.where(array==np.min(array[pad:max_ind[0],1] ) )[0]
-    #print (min_ind,max_ind)
-    #print (array[min_ind],array[max_ind])
-    half_max = max_value / 2
-    indices = np.where(array[max(0,max_ind[0]-roi):max_ind[0]+roi,1] >= half_max)[0]
-    #print (array[max_ind[0]-max(0,roi):max_ind[0]+roi,:][indices])
-    H = array[min_ind,1]/array[max_ind,1] #Xqmin/max_value
+    ratio_max = peak_factor * max_value 
+    indices = np.where(array[max(0,max_ind[0]-roi):max_ind[0]+roi,1] >= ratio_max)[0]
+    #H = array[min_ind,1]/array[max_ind,1] #Xqmin/max_value
     if (fwhm==True):
         if len(indices) > 1:
             fwhm = array[max(0,max_ind[0]-roi):max_ind[0]+roi,0][indices[-1]] - array[max(0,max_ind[0]-roi):max_ind[0]+roi,0][indices[0]]
-        return fwhm,H
+        return np.append(fwhm,HU_data)
     else:
-        return H
+        return HU_data
 
 def dmean_from_qpeak(array,factor=np.sqrt(3)/2):
     """
@@ -185,6 +224,29 @@ def rho_analytic(h,param,option=['gaussian','hyperbolic','sinc','exponential','s
 
     return rho_functions[option](param,h)
 
+def Sq_analytic(q,dmean,param,option=['ginibre','fourier_dual_ocp','hermite_gaussian','anti_hud']):
+    """
+    Analytic functions for structure factor. Can be used to generate a point distribution with prescribed S(q) using tostada.Optimization.
+    """
+    def ginibre(q,param=None):
+        return 1 - np.exp(-(dmean*q)**2/(4*np.pi))
+    def fourier_dual_ocp(q,param=None):
+        return 1 - np.exp(-dmean * q/(np.pi))
+    def hermite_gaussian(q,param=1/15): 
+        return 1 + param*np.sqrt(2*np.pi)*(-4*(dmean*q)**4 + 12*(dmean*q)**2 -3)*np.exp(-(dmean*q)**2/2)
+    def anti_hud(q,param=None):
+        return 1 + 1/(dmean * q)
+    Sq_functions = {
+        'ginibre': ginibre,
+        'fourier_dual_ocp': fourier_dual_ocp,
+        'hermite_gaussian': hermite_gaussian,
+        'anti_hud' : anti_hud
+    }
+
+    if option not in Sq_functions:
+        raise ValueError(f"Unknown option '{option}'. Valid options are: {list(Sq_functions.keys())}")
+
+    return Sq_functions[option](q,param)
 
 def RSA_distribution_function(x,mean,var,scale=1):
     """

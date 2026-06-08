@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d,RegularGridInterpolator
 
 #import color_system as csys
 
-def read_file(folder_path, keyword, N):
+def read_file(folder_path, keyword, N=0):
     """
     Reads the Nth file from folder_path with the given keyword. If no keyword and/or N is passed, the 0th file from the folder is picked. 
     Makes it convenient to read files generated from a parametric study. Loading is according to the file extension. 
@@ -45,7 +45,7 @@ def read_file(folder_path, keyword, N):
         image = np.loadtxt(image_path, delimiter=',')
     elif ext in ('.tif', '.tiff'):
         image = tiff.imread(image_path)
-    elif ext in ('.png','.jpg'):
+    elif ext in ('.png','.jpg','.jpeg'):
         image = cv2.imread(image_path)
     elif ext == '.pkl':
         with open(image_path, 'rb') as f:

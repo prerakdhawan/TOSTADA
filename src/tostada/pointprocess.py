@@ -1,8 +1,8 @@
 from tostada.PointDistribution import PointDistribution
 import autograd.numpy as np
 import scipy as sp
-import tostada.util.Utility
-from tostada.Statistics import RSA_distribution_function
+from tostada.Statistics import RSA_distribution_function,Sq_analytic
+from tostada.Optimization import Optimization
 import os
 from scipy.stats import binned_statistic,norm,cauchy,halfnorm
 
@@ -28,9 +28,9 @@ class Pointprocess:
         #if (np.mod(self.BoxSize/self.ax,2)!=0):
         #    self.BoxSize = int((self.BoxSize/self.ax)+1)*self.ax
     
-    def poisson_distribution(self,seed=None,is_periodic=True):
+    def poisson(self,seed=None,is_periodic=True):
         """
-        Generate a poisson-type point distribution.
+        Generate a poisson-type point distribution in 2D/3D with/without periodic boundaries. The points are uncorrelated.
 
         Parameters
         ----------
@@ -44,7 +44,7 @@ class Pointprocess:
         if seed is not None:
             np.random.seed(seed)
         coords = np.random.uniform(-1,1,[self.estimated_particles,self.ndim+1]) # since numbers are uncorrelated, the pts can be generated in 3D regardless
-        coords = coords*np.array(self.BoxSize)
+        coords = coords*np.array(self.BoxSize) # if Lz=0, the z will be forced to 0.
         if (is_periodic==True):
             pointconfig = PointDistribution(np.mod(coords,self.BoxSize[0]) - np.array(self.BoxSize)/2,self.diameter,self.BoxSize) 
         else:
@@ -79,8 +79,6 @@ class Pointprocess:
         num_lines = int(2 * self.BoxSize[0] * (1/self.ax) * np.pi)
         num_lines = int ((self.BoxSize[0]/self.ax)) # along each axis
         theta = np.random.uniform(0, np.pi, num_lines)
-        print(num_lines)
-
         max_rho = self.BoxSize[0] * np.sqrt(2) / 2  # Half diagonal of the box
         rho = np.random.uniform(-max_rho, max_rho, num_lines)
 
@@ -107,7 +105,7 @@ class Pointprocess:
         points = np.c_[points[:,0],points[:,1],np.zeros(points.shape[0])]
         return PointDistribution(points-np.array(self.BoxSize)/2,diameter=self.diameter,BoxSize=self.BoxSize)
 
-    def rect_lattice(self,noise=0,correlation_length=0,is_periodic=False):
+    def rect_lattice(self,noise=0,correlation_length=0,is_periodic=True):
         """
         Pertubed rectangular lattice in 2D or 3D. Perturbations can either be uniform for each lattice site or correlated by a correlation function. 
         Currently correlation function is a simple gaussian with correlation length. Returns a PointDistribution object for further analysis.
@@ -116,9 +114,13 @@ class Pointprocess:
         ----------
         noise : float
             Un-correlated perturbations. Normalized to lattice constants.
+
         correlation_length : float 
             Correlation length for the perturbations. Normalized to lattice constants.
         
+        is_periodic : bool, optional
+            Condition for periodic boundaries. Default : True.
+            
         Returns
         -------
         PointDistribution object 
@@ -212,7 +214,204 @@ class Pointprocess:
         #pointconfig = PointDistribution(coords,self.diameter,[self.BoxSize, (np.max(coords[:,1]-np.min(coords[:,1]))) * np.sqrt(3) / 2  ])
         return pointconfig
     
-    def RandomSequentialAdsorption(self,sdev_histo=0.06,limit=int(1e6),substrate=None):
+    def fourier_dual_ocp(self,q_f=None,init_state=None,**kwargs):
+        """
+        Create a fourier-dual of a one-component plasma point distribution with periodic boundaries such that its structure factor is given by S(q) = 1 - exp(-(aq)/pi). 
+        Such a distribution is class II hyperuniform (alpha=1). For reference, refer https://doi.org/10.1063/5.0189769.
+
+        Returns
+        -------
+
+        tostada.PointDistribution object
+
+        kwargs
+        ------
+        qmax : float
+            Maximum value in the reciprocal space until which the structure factor is computed. 
+            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+            Default : 2pi / (diameter/2)   
+
+        tol : float
+            Tolerance for the optimizer
+        maxiter : int
+            Maximum number of iterations for the optimizer
+
+        """
+        qmin = 2*np.pi/(self.BoxSize[0])
+        q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
+        D0 = self.diameter if self.diameter != 0 else self.ax/2
+        qmax = kwargs.get('qmax', 2*np.pi / (D0/3))
+        print ('choosing qmax = {q1} and q_f = {q2}'.format(q1=qmax,q2=q_f)) 
+        q = np.linspace(qmin,qmax,2000)
+        Sq_1d = Sq_analytic(q,dmean=self.ax,param=None,option='fourier_dual_ocp')
+        if (init_state==None):
+            print ('Initial state undefined. Choosing random sequential adsorption process.')
+            pts = self.RandomSequentialAdsorption(sdev_histo=0.2*self.ax, D0=0.25*self.ax)
+        else:
+            pts = init_state
+        pointdist = self.reciprocal_space_optimization(target = np.c_[q,Sq_1d],Qmax = 0.9*qmax/np.sqrt(2),q_f=q_f,init_state=pts,**kwargs)
+        return pointdist        
+
+    def ginibre(self,q_f=None,init_state=None,**kwargs):
+        """
+        Create a Ginibre point distribution with periodic boundaries such that its structure factor is given by S(q) = 1 - exp(-(aq)^2/4pi). 
+        Such a distribution is class I hyperuniform (alpha=2). For reference, refer https://doi.org/10.1063/5.0189769.
+
+        Returns
+        -------
+
+        tostada.PointDistribution object
+
+        kwargs
+        ------
+        qmax : float
+            Maximum value in the reciprocal space until which the structure factor is computed. 
+            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+            Default : 2pi / (diameter/2)   
+
+        tol : float
+            Tolerance for the optimizer
+        maxiter : int
+            Maximum number of iterations for the optimizer
+
+        """
+        qmin = 2*np.pi/(self.BoxSize[0])
+        q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
+        D0 = self.diameter if self.diameter != 0 else self.ax/2
+        qmax = kwargs.get('qmax', 2*np.pi / (D0/3))
+        print ('choosing qmax = {q1} and q_f = {q2}'.format(q1=qmax,q2=q_f)) 
+        q = np.linspace(qmin,qmax,2000)
+        Sq_1d = Sq_analytic(q,dmean=self.ax,param=None,option='ginibre')
+        if (init_state==None):
+            print ('Initial state undefined. Choosing random sequential adsorption process.')
+            pts = self.RandomSequentialAdsorption(sdev_histo=0.2*self.ax, D0=0.25*self.ax)
+        else:
+            pts = init_state
+        pointdist = self.reciprocal_space_optimization(target = np.c_[q,Sq_1d],Qmax = 0.9*qmax/np.sqrt(2),q_f=q_f,init_state=pts,**kwargs)
+        return pointdist
+
+    def anti_hyperuniform(self,q_f=None,init_state=None,**kwargs):
+        """
+        Create a anti-hyperuniform point distribution such that its structure factor is given by S(q) = 1 + 1/q. 
+        Such a distribution is anti-hyperuniform (alpha < 0). 
+
+        Returns
+        -------
+
+        tostada.PointDistribution object
+
+        kwargs
+        ------
+        qmax : float
+            Maximum value in the reciprocal space until which the structure factor is computed. 
+            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+            Default : 2pi / (diameter/2)   
+
+        tol : float
+            Tolerance for the optimizer
+
+        maxiter : int
+            Maximum number of iterations for the optimizer    
+        """
+        qmin = 2*np.pi/(self.BoxSize[0])
+        q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
+        D0 = self.diameter if self.diameter != 0 else self.ax/2
+        qmax = kwargs.get('qmax', 2*np.pi / (D0/3))
+        print ('choosing qmax = {q1} and q_f = {q2}'.format(q1=qmax,q2=q_f)) 
+        q = np.linspace(qmin,qmax,2000)
+        Sq_1d = Sq_analytic(q,dmean=self.ax,param=None,option='anti_hud')
+        if (init_state==None):
+            print ('Initial state undefined. Choosing random sequential adsorption process.')
+            pts = self.RandomSequentialAdsorption(sdev_histo=0.2*self.ax, D0=0.25*self.ax)
+        else:
+            pts = init_state
+        pointdist = self.reciprocal_space_optimization(target = np.c_[q,Sq_1d], Qmax = 0.9*qmax/np.sqrt(2),q_f=q_f,init_state=pts,**kwargs)
+        return pointdist
+
+    def hermite_gaussian(self,q_f=None,init_state=None,**kwargs):
+        """
+        Create a hermite gaussian point distribution with periodic boundaries such that its structure factor is given by S(q) = 1 - v(q) * exp(-q^2/2). 
+        Such a distribution is non-hyperuniform (alpha = 0). For reference, refer https://doi.org/10.1063/5.0189769.
+
+        Returns
+        -------
+
+        tostada.PointDistribution object
+
+        kwargs
+        ------
+        qmax : float
+            Maximum value in the reciprocal space until which the structure factor is computed. 
+            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+            Default : 2pi / (diameter/2)   
+
+        tol : float
+            Tolerance for the optimizer
+
+        maxiter : int
+            Maximum number of iterations for the optimizer    
+        """
+        qmin = 2*np.pi/(self.BoxSize[0])
+        q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
+        D0 = self.diameter if self.diameter != 0 else self.ax/2
+        qmax = kwargs.get('qmax', 2*np.pi / (D0/3))
+        print ('choosing qmax = {q1} and q_f = {q2}'.format(q1=qmax,q2=q_f)) 
+        q = np.linspace(qmin,qmax,2000)
+        Sq_1d = Sq_analytic(q,dmean=self.ax,param=kwargs.get('lam',1/15),option='hermite_gaussian')
+        if (init_state==None):
+            print ('Initial state undefined. Choosing random sequential adsorption process.')
+            pts = self.RandomSequentialAdsorption(sdev_histo=0.2*self.ax, D0=0.25*self.ax)
+        else:
+            pts = init_state
+        pointdist = self.reciprocal_space_optimization(target = np.c_[q,Sq_1d], Qmax = 0.9*qmax/np.sqrt(2),q_f=q_f,init_state=pts,**kwargs)
+        return pointdist
+    
+    def reciprocal_space_optimization(self,target,Qmax,q_f=None,init_state=None,**kwargs):
+        """
+        Create a point distribution with periodic boundaries for a prescribed structure factor. Uses tostada.Optimization for gradient-based optimization.
+        Such a distribution is class I hyperuniform.
+
+        target : ndarray
+            reciprocal space target. Can be angular-averaged [q, Sq] array or [q_x , q_y, Sq] array.
+
+        Qmax : float
+            Maximum value in the reciprocal space until which the structure factor is computed. 
+            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+            Default : 2pi / (diameter/2)   
+
+        q_f : float
+            Maximum reciprocal space vector until which the structure factor is optimized against a target or simply minimized (S=0). 
+
+        kwargs
+        ------
+
+        tol : float
+            Tolerance for the optimizer
+        maxiter : int
+            Maximum number of iterations for the optimizer
+
+        """
+        q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
+        D0 = self.diameter if self.diameter != 0 else self.ax/2
+        maxiter = kwargs.get('maxiter',150)
+        tol = kwargs.get('tol',1e-8)
+        masked_pos = kwargs.get('masked_pos',None)
+        if (init_state==None):
+            print ('Initial state undefined. Choosing random sequential adsorption process.')
+            pts = self.RandomSequentialAdsorption(sdev_histo=0.2*self.ax, D0=0.25*self.ax)
+        else:
+            pts = init_state
+        opt = Optimization(pts,Qmax= Qmax ) 
+        if (target.ndim==2):
+            opt.Target = opt.interpolate_Target1D(target)
+        else:
+            opt.Target = target
+        opt_dist = opt.optimize(q_f = q_f,D0=D0,maxiter=maxiter,
+                                tol=tol,masked_pos=masked_pos,
+                                g_trend=kwargs.get('g_trend','exp'),s_trend=kwargs.get('s_trend','soft'))
+        return PointDistribution(opt.opt_positions,diameter=self.diameter,BoxSize=self.BoxSize)
+
+    def RandomSequentialAdsorption(self,sdev_histo=0.06,D0=None,limit=int(1e6),substrate=None):
         """
         Random Sequential Adsorption process in 2D/3D. Sequentially deposits particles based on a half-gaussian probabilistic model until a desired particle density is reached. 
         Avoids overlapping particles.
@@ -234,6 +433,8 @@ class Pointprocess:
 
         pointconfig : tostada.PointDistribution object
         """
+        D0 = self.diameter if D0 is None else D0
+
         def is_forbidden(pos,substrate):
             pos = pos + np.array(self.BoxSize)/2
             pos = np.int32(pos/substrate.resolution)
@@ -262,7 +463,7 @@ class Pointprocess:
 
         areaF = 1/(self.ax)**self.ndim # target particle density
         FF=0
-        mean = self.ax - self.diameter
+        mean = self.ax - D0
         coords=np.zeros([1,3],dtype=float)   
         printProgressBar(0, limit, prefix = 'Generating Pattern (T='+str(limit)+'):', suffix = '', length = 30)
 
@@ -274,7 +475,7 @@ class Pointprocess:
         placedLastRound=True
         posTree=0
         for i in range(limit):
-            Particles = PointDistribution(coords,self.diameter,self.BoxSize)
+            Particles = PointDistribution(coords,D0,self.BoxSize)
             FF = Particles.particledensity
             #placed=0
             if FF>=areaF:
@@ -289,7 +490,7 @@ class Pointprocess:
             #adjsph=Particles.adjacent_particles(Lx=self.BoxSize[0],Ly=self.BoxSize[1])
             adjsph = Particles.tessellate()
             #how many neighbors to consider to calculated sticking probability
-            nn = (self.ndim-1)*6 #6 neighbours for interaction in a 2D hexagonal lattice. 12 for cubic lattice. 
+            nn = (self.ndim-1)*6 
             if len(adjsph)<nn:
                 n_neighbors=len(adjsph)
             else:
@@ -304,10 +505,10 @@ class Pointprocess:
             NNdist=Result[0]
             
             forbidden_region = False if substrate is None else is_forbidden(newCoord,substrate)
-            if NNdist<self.diameter:
+            if NNdist<D0:
                 continue
             #if NNdist>mean+self.diameter:
-            if np.logical_and(NNdist > (mean+self.diameter),forbidden_region==False):
+            if np.logical_and(NNdist > (mean+D0),forbidden_region==False):
                 coords=np.vstack((coords,newCoord))
                 #placed+=1
                 placedLastRound=True
@@ -320,8 +521,7 @@ class Pointprocess:
             NNdists=Result[0]
             probStick=1
             for neighbor in range(n_neighbors):
-                #probStick*=stickingProb(NNdists[neighbor]-self.diameter,mean,sdev_histo)
-                probStick*=RSA_distribution_function(NNdists[neighbor]-self.diameter,mean,sdev_histo)
+                probStick*=RSA_distribution_function(NNdists[neighbor]-D0,mean,sdev_histo)
 
             #if probStick>=randn:
             if np.logical_and(probStick>=randn,forbidden_region==False):
@@ -329,6 +529,6 @@ class Pointprocess:
                 #placed+=1
                 placedLastRound=True
 
-        pointconfig = PointDistribution(coords,self.diameter,self.BoxSize)
+        pointconfig = PointDistribution(coords,D0,self.BoxSize)
         print("number of experiments:"+str(i))
         return pointconfig

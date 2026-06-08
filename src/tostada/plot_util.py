@@ -16,7 +16,7 @@ class Visualize:
     def __init__(self, distribution):
         self.distribution = distribution
 
-    def plot_distribution(self,ax=None,cmap='viridis',facecolor='tab:olive'):
+    def plot_distribution(self,ax=None,cmap='viridis',facecolor='tab:olive',**kwargs):
         """
         Plots phase distribution or point-distribution (with fixed diameter). For 3D phase data, currently only plots a 2D slice. 
         For 3D point distribution, plot the 3D scattering data using pyvista or matplotlib's 3D tools.
@@ -37,9 +37,9 @@ class Visualize:
             fig, ax = plt.subplots(figsize=(7, 7))
             #self.fig, self.ax = plt.subplots(figsize=self.figsize)
         if isinstance(self.distribution, PointDistribution):
-            return self._plot_pointdistribution(ax,facecolor)
+            return self._plot_pointdistribution(ax,facecolor,**kwargs)
         elif isinstance(self.distribution, PhaseDistribution):
-            return self._plot_phasedistribution(ax,cmap=cmap)
+            return self._plot_phasedistribution(ax,cmap=cmap,**kwargs)
         else:
             raise ValueError("Unsupported class type. Please provide an instance of PointDistribution or PhaseDistribution.")
     
@@ -98,16 +98,17 @@ class Visualize:
         ax.set_ylabel('Y ($\\mathrm{\\mu}$m)',fontsize=15)
         return ax
 
-    def _plot_phasedistribution(self,ax,cmap):
+    def _plot_phasedistribution(self,ax,cmap,**kwargs):
         "Check for 3D"
+        interpolation = kwargs.get('interpolation','nearest')
         if (self.distribution.ndim==2):
             cax = ax.imshow(self.distribution.image.T/np.max(self.distribution.image), origin='lower',
-                            extent=[0,self.distribution.Lx,0,self.distribution.Ly],cmap = cmap)
+                            extent=[0,self.distribution.Lx,0,self.distribution.Ly],cmap = cmap,interpolation=interpolation)
         else:
             print ('3D Data. Plotting for y={y0} slice'.format(y0=self.distribution.Ly//2))
             cax = ax.imshow(self.distribution.image[:,self.distribution.BoxSize[1]//2,:].T/np.max(self.distribution.image),
                             aspect='auto', origin='lower',
-                            extent=[0,self.distribution.Lx,0,self.distribution.Lz], cmap=cmap)
+                            extent=[0,self.distribution.Lx,0,self.distribution.Lz], cmap=cmap,interpolation=interpolation)
         ax.figure.colorbar(cax,ax=ax)
         ax.set_title('Phase Distribution')
         ax.set_xlabel('X ($\\mathrm{\\mu}$m)',fontsize=15)

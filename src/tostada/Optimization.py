@@ -48,7 +48,8 @@ class Optimization:
         tol : float, optional
             Tolerance for the optimization. Default : 1e-8
         D0 : float, optional
-            Distance to which the pair-correlation is required to be zero. Currently used for avoiding overlap. If None, uses self.diameter
+            Distance to which the pair-correlation is required to be zero. Currently used for avoiding overlap. 
+            If None, uses self.diameter. If D0=0, the optimization is un-constrained (no overlap/aggregation constraint).
         positions : ndarray, optional
             Specific positions that need to be optimized. If None, uses positions from self.Distribution. If None, uses self.positions
         masked_pos : ndarray, optional
@@ -62,7 +63,10 @@ class Optimization:
             q_f along the y direction. 
         
         g_trend : str, optional
-            Trends for pair-correlation weights. Possible inputs: 'radial' (1-r/D) and 'exp' (exp(-r/D)^2)
+            Trends for pair-correlation weights. Possible inputs: 'linear' (1-r/D) and 'exp' (exp(-r/D)^2)
+        
+        s_trend : str, optional
+            Trends for structure factor weights. Possible inputs: 'hard' (hard mask for S(q_i<q<q_f)) and 'soft' (soft mask for S(q_i<q<q_f))
         """
         inputs = self.init_positions.flatten() if positions is None else positions.flatten()
         D0 = self.D0 if D0 is None else D0
@@ -94,7 +98,7 @@ class Optimization:
         value = self.Objective(inputs,D0,q_f,masked_pos,mask_mode=mask_mode,**kwargs)
         grad = self.custom_grad(inputs,D0,q_f,masked_pos,mask_mode=mask_mode,**kwargs)
         if (np.mod(self.current_iter,5)==0):
-            print ('Current iteration : {i}, Objective = {ob} with gradient = {gr}'.format(i=self.current_iter,ob=value,gr=np.abs(grad)))
+            print ('Current iteration : {i}, Objective = {ob} with gradient = {gr}'.format(i=self.current_iter,ob=value,gr=np.sum(np.abs(grad)) ))
         return value, grad
 
     @staticmethod
@@ -106,8 +110,12 @@ class Optimization:
         return weights
     
     @staticmethod
-    def weights_sterm(Sq_term):
-        weights = jnp.where(Sq_term>0,1,0)
+    def weights_sterm(Sq_term,Sq=None,dmean=None,trend=['hard','soft']):
+        if (trend=='hard'):
+            weights = jnp.where(Sq_term>0,1,0)
+        elif (trend=='soft'):
+            qdist = jnp.hypot(Sq[0], Sq[1])
+            weights = jnp.exp(-(dmean*qdist/2)**2)
         return weights
 
     def pair_correlation_objective(self,D0,**kwargs):
@@ -170,7 +178,7 @@ class Optimization:
         self.Sq = Sq
         Sq_masked = self.mask_Sq(Sq,q_f,mode=mask_mode)
         _Target = jnp.zeros_like(Sq_masked) if self.Target is None else self.mask_Sq(self.Target,q_f,mode=mask_mode)
-        weights2 = self.weights_sterm(Sq_masked) #jnp.where(Sq_masked>0,1,0)
+        weights2 = self.weights_sterm(Sq_masked,Sq,dmean=self.Distribution.dmean,trend=kwargs.get('s_trend','hard')) #jnp.where(Sq_masked>0,1,0)
         #_Target = Target[2]*weights2
         sterm = jnp.sum(weights2*(Sq_masked -_Target)**2/jnp.sum(weights2))#  
         gterm = 0 if D0 == 0 else self.pair_correlation_objective(D0=D0,Sq=Sq,**kwargs) 
@@ -218,7 +226,7 @@ class Optimization:
         nk = nkreal - 1j*nkimag #jnp.sum(term_real_t,axis=0) - 1j*jnp.sum(term_imag_t,axis=0)
 
         Sq_masked = self.mask_Sq(Sq,q_f,mode=mask_mode) #!jnp.where(jnp.logical_or((kdist >= q_f),(kdist <= self.q_i)), 0,(Sq[2])) 
-        weights1 = self.weights_sterm(Sq_masked) #!jnp.where(Sq_masked>0,1,0)
+        weights1 = self.weights_sterm(Sq_masked,Sq=Sq,dmean=self.Distribution.dmean,trend=kwargs.get('s_trend','hard')) #!jnp.where(Sq_masked>0,1,0)
         _Target = jnp.zeros_like(Sq_masked) if self.Target is None else self.mask_Sq(self.Target,q_f,mode=mask_mode)
 
         f_term1 = (weights1*((Sq_masked)-_Target) ).flatten()/jnp.sum(weights1) 

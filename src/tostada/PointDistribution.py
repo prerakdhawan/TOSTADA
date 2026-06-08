@@ -152,20 +152,30 @@ class PointDistribution:
         self.G2r_averaged = stats.angular_average(self.G2r,dr)
         return self.G2r,self.G2r_averaged
     
-    def Hyperuniformity_data(self,kmax=80,dkx=None,pad=1,roi=10,fwhm=True):
+    def Hyperuniformity_data(self,hud_class=False,kmax=80,dkx=None,pad=1,roi=10,fwhm=True,**kwargs):
         """
         Spectral width (FWHM) and Hyperuniformity index of the point distribution. See Statistics.py for further details. 
         Note: FWHM may not always be meaningfull for point-distributions as a measure of spectral width here since S(q) -> 1 for q>>0
         """
         #if not hasattr(self, 'Sq_averaged'):
+        q_ind_max = kwargs.get('q_ind_max',4)
+        smooth = kwargs.get('smooth',False)
+        smooth_window = kwargs.get('smooth_window',5)
+        peak_factor = kwargs.get('peak_factor',0.5)
+        fit_param = kwargs.get('fit_param',False)
+
         dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         Sq = self.ReciprocalSpace(kmax,dkx)
-        Hdata = stats.fwhm_and_H(self.Sq_averaged,pad=pad,roi=roi,fwhm=fwhm)
+        Hdata = stats.fwhm_and_H(self.Sq_averaged,hud_class=hud_class,smooth=smooth,
+                                 smooth_window=smooth_window,peak_factor=peak_factor,
+                                 pad=pad,roi=roi,fwhm=fwhm,q_ind_max=q_ind_max,fit_param=fit_param)
         if (fwhm==True):
             print ('Spectral Width of the structural peak={p}'.format(p=Hdata[0]))
             print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
         else:
             print ('Hyperuniformity of the structure = {h}'.format(h=Hdata))
+        if (hud_class==True):
+            print ('HUD class with alpha={a}'.format(a=Hdata[3]))
         return Hdata
     
     def Dmean_from_q(self,factor=np.sqrt(3)/2,kmax=100):
