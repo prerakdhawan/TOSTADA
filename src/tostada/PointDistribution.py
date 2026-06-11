@@ -12,6 +12,8 @@ from scipy.spatial import cKDTree
 from skimage.draw import line,polygon
 from scipy.spatial import Voronoi
 import pickle
+from skimage import measure, draw
+from matplotlib.path import Path
 
 try:
     import cupy as cp
@@ -187,28 +189,85 @@ class PointDistribution:
         Dmean = stats.dmean_from_qpeak(self.Sq_averaged,factor=factor)
         print ('Mean center-to-center distance = {d}'.format(d=Dmean))
         return np.float32(Dmean)
-    
-    def get_morphological_parameters(self,is_periodic = True, shift_vec=np.array([0,0]), **kwargs):
+
+    def get_morphological_parameters(self,**kwargs):
+        pad = kwargs.get('pad',1)
+        method = kwargs.get('method','voronoi')
+        resolution = kwargs.get('resolution',0.01)
+        if (method=='voronoi'):
+            phase = self.Phaseobject_voronoi(resolution,rad=kwargs.get('rad',2),output=False)
+        elif (method=='trivalent'):
+            phase = self.Phaseobject_trivalent(resolution,rad=kwargs.get('rad',2),output=False)
+        pad_int = int(pad/phase.resolution)
         def isin_box(v):
             return np.logical_and(np.greater(v, coords_min ), np.less(v, coords_max ) )
-        
-        vor = Voronoi(self.positions[:,:2]) if is_periodic==False else Voronoi(self.tessellate()[:,:2])
-        coords_max = np.array([self.BoxSize[0]/2 + shift_vec[0] ,self.BoxSize[1]/2 + shift_vec[1]  ])
-        coords_min = np.array([- self.BoxSize[1]/2 + shift_vec[1] , - self.BoxSize[1]/2 + shift_vec[1] ])
-        polygons=[]
-        for i, region_idx in enumerate(vor.point_region):
-            region = vor.regions[region_idx]
-            if -1 in region or len(region) == 0:
-                continue  # skip infinite regions
-            coords = [vor.vertices[i] for i in region]
-            coords = np.array(coords)
-            mask = np.bool(np.prod(isin_box(coords),axis=1))
-            coords = coords[mask]
-            if(coords.shape[0]>2):
-                polygons.append(coords[:,None])
 
-        regionprops = None # relevant only in phase distributions
-        return polygons, self.positions, regionprops 
+        coords_max = np.array([int(2*self.BoxSize[0]/resolution) + pad_int , int(2*self.BoxSize[1]/resolution) + pad_int ])
+        coords_min = np.array([ int(1*self.BoxSize[0]/resolution) - pad_int , int(1*self.BoxSize[1]/resolution)  - pad_int ])
+        level = kwargs.get('level',0.05)
+        contours = measure.find_contours(phase.tessellate(),level)
+        tol = kwargs.get('tolerance',1)
+        polygons = []
+        for i in range(len(contours)):
+            poly = contours[i]
+            mask = np.bool(np.prod(isin_box(poly),axis=1))
+            if (np.bool(np.prod(mask))):
+                poly = measure.approximate_polygon(poly,tolerance=tol)[:,None]*resolution
+                polygons.append(poly)
+        filtered = self.filter_polygons(polygons)
+        label_img = np.zeros(coords_max-coords_min, dtype=np.int32)
+        for i, poly in enumerate(filtered, start=1):
+            poly = np.asarray(poly).squeeze()
+            if poly.shape[0] < 3:
+                continue
+            rr, cc = draw.polygon( (poly[:, 0] - (self.BoxSize[0]-pad))/resolution, (poly[:, 1] - (self.BoxSize[1]-pad) ) /resolution, shape=label_img.shape)
+            label_img[rr, cc] = i
+        properties = measure.regionprops(label_img)
+        positions = np.array([p.centroid for p in properties])*resolution - (pad + np.array(self.BoxSize)[:self.ndim]/2)
+        selected_polygons = [arr - (3/2)*np.array(self.BoxSize)[:self.ndim] for arr in filtered]
+        return selected_polygons, positions, np.array(properties)
+    
+    def filter_polygons(self,polygons):
+        def point_in_poly(pt, poly):
+            return Path(np.asarray(poly)).contains_point(pt)
+        
+        points = (self.positions + (3/2)*np.array(self.BoxSize)) [:,:self.ndim]
+        N = self.totalparticles
+        chosen = [None] * N
+        used = set()
+        shifted_polys = polygons
+        for i, p in enumerate(points):
+            found = []
+            for j, poly in enumerate(shifted_polys):
+                if j in used:
+                    continue
+                if len(poly) >= 3 and point_in_poly(p, poly[:,0,:]):
+                    found.append(j)
+
+            if len(found) == 1:
+                j = found[0]
+            elif len(found) > 1:
+                # pick the polygon with centroid closest to the point
+                d2 = []
+                for j in found:
+                    cen = shifted_polys[j].mean(axis=0)
+                    d2.append(np.sum((cen - p)**2))
+                j = found[int(np.argmin(d2))]
+            else:
+                # fallback: nearest polygon centroid
+                d2 = []
+                valid = []
+                for j, poly in enumerate(shifted_polys):
+                    if j in used or len(poly) < 3:
+                        continue
+                    cen = poly.mean(axis=0)
+                    valid.append(j)
+                    d2.append(np.sum((cen - p)**2))
+                j = valid[int(np.argmin(d2))]
+
+            chosen[i] = shifted_polys[j]
+            used.add(j)
+        return chosen
     
     def compute_morphology(self,smax=6,**kwargs):
         """
@@ -271,37 +330,6 @@ class PointDistribution:
         S_k[:,1]=S_ks[:-1]
 
         return S_k
-
-    #Delete after checking Optimization.py
-    def adjacent_particles(self,Lx=None,Ly=None,custom_pos=None):
-        """
-        "pseudo-periodic" boundary conditions, repeat the square pattern (x) to all eight sides of the domain
-        
-        ###         a b c            
-        #x#     --> d x e
-        ###         f g h
-        
-        different from the other script, here it is including the center!
-        shifts:
-        """   
-        pos = custom_pos if custom_pos is not None else self.positions
-
-        if (pos.ndim==2):
-            pos = np.c_[pos[:,0],pos[:,1],0*pos[:,0]]        
-
-        a=np.asarray([-Lx,Ly,0])
-        b=np.asarray([0,Ly,0])
-        c=np.asarray([Lx,Ly,0])
-        d=np.asarray([-Lx,0,0])
-        e=np.asarray([Lx,0,0])
-        f=np.asarray([-Lx,-Ly,0])
-        g=np.asarray([0,-Ly,0])
-        h=np.asarray([Lx,-Ly,0])
-
-        adjacent=np.concatenate((pos, a+pos, b+pos,
-                                 c+pos, d+pos, e+pos,
-                                 f+pos, g+pos, h+pos),axis=0)        
-        return adjacent #neighbors + itself
     
     def tessellate(self, copies=1, cell_size=None, return_dist=False):
         """
@@ -565,64 +593,6 @@ class PointDistribution:
         G2data = jnp.concatenate((Grid,Data[0][None,:,:]/denom ), axis=0) 
         return G2data
 
-    #Delete after checking Optimization.py
-    def point_correlation2D(self,r_max=None,dr=None,custom_pos=None,custom_bins=None):
-        
-        if (r_max == None):
-            r_max = 6*self.dmean 
-        if (dr==None):
-            dr = r_max/100 #0.04
-        #if (pos==None):
-        #    pos = self.positions
-        pos = custom_pos if custom_pos is not None else self.positions
-        # Calculate histogram of pair distances
-        bins2 = np.arange(dr,r_max/2+dr, dr)
-        _bins2 = np.arange(-r_max/2-dr,0,dr )
-        bins2 = np.append(_bins2,bins2)
-
-        #delta = self.positions[:,np.newaxis,:] - self.positions[np.newaxis,:,:]
-        delta = pos[:,np.newaxis,:] - pos[np.newaxis,:,:]
-#        delta = delta.reshape(-1,self.positions.shape[1])
-        delta = delta.reshape(-1,pos.shape[1])
-        hist2d,binx,biny = np.histogram2d(delta[:,0],delta[:,1],bins2) #non-differentiable hence custom grad needed
-#        hist2d = self.differentiable_histogram2d(delta, bins2, bins2)
-        # Calculate two-point correlation function
-        gridx,gridy=np.meshgrid(biny[1:],binx[1:])
-#        gridx,gridy=np.meshgrid(bins2[:-1], bins2[:-1])
-#        return np.asarray([binx[1:],biny[1:],hist2d])
-        return np.asarray([gridx,gridy,hist2d/(r_max**2)])
-    
-    #Delete after checking Optimization.py
-    def point_correlation2D_jax(self, r_max=None, dr=None, custom_pos=None,custom_bins=None):
-        if r_max is None:
-            r_max = 6 * self.dmean
-        if dr is None:
-            dr = r_max / 100  # 0.04
-        pos = custom_pos if custom_pos is not None else self.positions
-
-        # Calculate histogram bin edges for pair distances
-        bins2 = jnp.arange(dr, r_max / 2 + dr, dr)
-        _bins2 = jnp.arange(-r_max / 2 - dr, 0, dr)
-        bins2 = jnp.concatenate([_bins2, bins2])
-
-        # Calculate pairwise differences
-        delta = pos[:, jnp.newaxis, :] - pos[jnp.newaxis, :, :]
-        delta = delta.reshape(-1, pos.shape[1])
-        
-        _bins = custom_bins if custom_bins is not None else bins2
-        #Vol = ((jnp.max(_bins) - jnp.min(_bins))/2)**2
-        
-        # Histogram calculation is done using jnp.histogram2d from JAX, which is not directly available.
-        # This can be approximated with manual binning or using custom JAX-compatible code.
-        # For now, you can replace with a custom histogram2d implementation in JAX if required.
-        hist2d, binx, biny = jnp.histogram2d(delta[:, 0], delta[:, 1], bins=_bins)
-
-        # Calculate two-point correlation function grid
-        gridx, gridy = jnp.meshgrid(biny[1:], binx[1:])
-        #dr = (jnp.min(_bins[_bins>0])) # not differentiable
-        denom = self.totalparticles*self.particledensity * jnp.square(dr)
-        return jnp.asarray([gridx, gridy, hist2d / (denom)])
-
     def pair_corr_Sq_jax(self,Sq=None,kmax=None):
         """
         Pair correlation function in 2D/3D using pre-computed Structure Factor. 
@@ -813,7 +783,7 @@ class PointDistribution:
         return PhaseDistribution(psi,dx)
     
     def Phaseobject_voronoi(self,resolution,
-                            rad=1, boundary_mask = None,skip_edges=None):
+                            rad=1, boundary_mask = None,skip_edges=None, output=True):
         """
         Creates a "2D" two-phase media from the point-pattern through Voronoi tessellation. Currently only implemented in 2D and with periodic boundaries.
         It finds the finite vertices from the Voronoi cells and dilates them using given radii to form a porous microstructure.
@@ -881,10 +851,11 @@ class PointDistribution:
             clipped_phase[:,-boundary_mask:] = 1
 
         Phase = PhaseDistribution(clipped_phase, resolution=self.BoxSize[0]/clipped_phase.shape[0])
-        print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
+        if (output==True):
+            print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase 
 
-    def Phaseobject_trivalent(self, resolution, rad=1, boundary_mask=None):
+    def Phaseobject_trivalent(self, resolution, rad=1, boundary_mask=None,output=True):
         """
         Creates a "2D" trivalent two-phase media from the point-pattern through Centroidal Tessellation. Creates a trivalent network whose volume fraction is decided by `rad`.
         Works with periodic point patterns by tessellating and then cropping to the central box.
@@ -943,10 +914,11 @@ class PointDistribution:
             clipped_phase[:,-boundary_mask:] = 1
         
         Phase = PhaseDistribution(clipped_phase, resolution=self.BoxSize[0]/clipped_phase.shape[0])
-        print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
+        if (output==True):
+            print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase
-    
-    def lloyd_relaxation(self, points=None, n_iter=10):
+
+    def lloyd_relaxation(self, points=None, n_iter=10,**kwargs):
         """
         Lloyd's algorithm with periodic boundaries.
         Keeps number of points FIXED.
@@ -956,46 +928,10 @@ class PointDistribution:
         else:
             pts = points.copy()
         
-        Lx, Ly = self.BoxSize[:2]  
-        
         for _ in range(n_iter):
             pts_ = PointDistribution(pts,diameter=self.diameter,BoxSize=self.BoxSize)
-            tess_pts = pts_.tessellate()
-            vor = Voronoi(tess_pts[:,:self.ndim])
-            
-            new_pts = np.zeros_like(pts)
-            
-            for i in range(len(pts)):
-                idx = i + len(pts) * 4  # center copy is at offset 4 (dr=[0,0])
-                region_idx = vor.point_region[idx]
-                region = vor.regions[region_idx]
-                
-                if -1 in region or len(region) == 0:
-                    new_pts[i] = pts[i]
-                    continue
-                
-                verts = vor.vertices[region]
-                
-                # Clip vertices to center box [-Lx/2, Lx/2] x [-Ly/2, Ly/2]
-                box = np.array([-Lx/2, Lx/2, -Ly/2, Ly/2])
-                masked_verts = verts[
-                    (verts[:, 0] >= box[0]) & (verts[:, 0] <= box[1]) &
-                    (verts[:, 1] >= box[2]) & (verts[:, 1] <= box[3])
-                ]
-                
-                if len(masked_verts) < 3:
-                    new_pts[i] = pts[i]  # Keep original
-                else:
-                    # Compute centroid of clipped vertices
-                    centroid = np.mean(masked_verts, axis=0)
-                    
-                    # WRAP centroid to periodic box
-                    centroid = centroid + np.array([Lx/2, Ly/2])  # shift to [0, L]
-                    centroid = centroid % np.array([Lx, Ly])       # periodic wrap
-                    centroid = centroid - np.array([Lx/2, Ly/2])   # shift back to [-L/2, L/2]
-
-                    new_pts[i] = centroid
-            pts = new_pts
+            mor = pts_.compute_morphology(**kwargs)
+            pts = mor.positions
         return pts
 
     def relax_points(self,points=None,n_iter=10):
@@ -1007,7 +943,7 @@ class PointDistribution:
         self.positions = pts
         return None
 
-    def Phaseobject_CVT(self, resolution, rad=1, n_lloyd=10, boundary_mask=None):
+    def Phaseobject_CVT(self, resolution, rad=1, n_lloyd=10, boundary_mask=None,output=True):
         """
         Creates 2D phase distribution using Centroidal Voronoi Tessellation (CVT).
         Uses Voronoi vertices (trihedral coordination) like in the literature.
@@ -1052,7 +988,8 @@ class PointDistribution:
             clipped_phase[:,-boundary_mask:] = 1
 
         Phase = PhaseDistribution(clipped_phase, resolution=self.BoxSize[0]/clipped_phase.shape[0])
-        print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
+        if (output==True):
+            print ('Volume fraction of generated phase = {v} with resolution = {r}'.format(v=Phase.volumefraction,r=Phase.resolution))
         return Phase
 
     def SpectralDensity(self):

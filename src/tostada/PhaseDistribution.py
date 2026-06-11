@@ -183,7 +183,7 @@ class PhaseDistribution:
         positions = np.array([p.centroid for p in properties])
         regionprops = properties
         return polygons, positions, regionprops
-    
+
     def compute_morphology(self,smax=6,**kwargs):
         """
         Construct a `Morphology` object containing the shape properties of the detected objects/voids. 
@@ -361,52 +361,3 @@ class PhaseDistribution:
         """
         scd = stats.SphericalContactDistribution(self.image,self.resolution)
         return scd
-
-    def detect_circular_centers(self, filtered_image = None,
-                                min_area=20, max_aspect_ratio=1.5, 
-                                use_circularity=False, circ_threshold=0.5):
-        """
-        Detects circular objects in an image and returns their centers of mass.
-        NOTE : In future, move this to Morphology3D since `regionprops` is quite generic and gives many important properties 
-        
-        Parameters
-        ----------
-        filtered_image : 2D/3D numpy array 
-            Pre-processed image if dataset is experimental. Else, for a binarized dataset already, leave it unspecified (uses PhaseDistribution.image by default)
-        min_area : int
-            Minimum region area (in pixels) for the analysis. Area of detected objects below this are ignored.
-        max_aspect_ratio : float
-            Max major/minor axis ratio for roundness
-        use_circularity : bool
-            If True, also filter by perimeter^2/(4*pi*area) > threshold
-        circ_threshold : float
-            min circularity (0-1, closer to 1 is rounder)
-        
-        Returns
-        -------
-        centers : np.ndarray (N, 2) of (row_y, col_x) centers
-            Detected centers in the image. Can be passed to tostada.PointDistribution for point-distribution analysis.
-        diameters : N x 1 array
-            Equivalent diameters of each detected object based on their respective detected areas.
-        """
-        img = self.image if filtered_image is None else filtered_image
-        # Binarize with Otsu
-        thresh = filters.threshold_otsu(img)
-        binary = img > thresh
-        labels = measure.label(1-binary)
-        props = measure.regionprops(labels) 
-        diameters=[]
-        centers = []
-        for p in props:
-            if p.area < min_area:
-                continue
-            aspect_ratio = p.major_axis_length / p.minor_axis_length if p.minor_axis_length > 0 else float('inf')
-            if aspect_ratio > max_aspect_ratio:
-                continue
-            if use_circularity:
-                circ = (p.perimeter ** 2) / (4 * np.pi * p.area) if p.area > 0 else 0
-                if circ < circ_threshold:
-                    continue
-            centers.append(p.centroid)  
-            diameters.append(p.equivalent_diameter_area)
-        return np.fliplr(np.array(centers)),np.array(diameters)

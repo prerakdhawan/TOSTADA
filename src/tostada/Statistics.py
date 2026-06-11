@@ -1,11 +1,10 @@
 import numpy as np
 from scipy.stats import binned_statistic,gaussian_kde,norm
 from skimage.morphology import ball,disk,dilation,binary_erosion
-from skimage import measure
+from skimage import measure, draw
 from scipy.spatial import cKDTree
 from scipy.ndimage import distance_transform_edt,zoom
 from scipy.optimize import curve_fit
-#from tostada.PointDistribution import PointDistribution
 import matplotlib.pyplot as plt
 
 def angular_average(data,dkx):
@@ -494,3 +493,20 @@ class Morphology:
             return ax
         else:
             return self.mean_stats,self.std_stats
+        
+    def draw_polygon(self,resolution,polygon_ind, shape, shift_vec=[0,0]):
+            """
+            Draw a given polygon detected by the self.polygons. Creates a two-phase media such that I(polygon) = 1 and I(~polygon) = 0.
+
+            """
+            label_img = np.zeros(shape, dtype=np.int32)
+            if type(polygon_ind) == int:
+                polygon = np.asarray(self.polygons[polygon_ind]).squeeze() + shift_vec
+                rr, cc = draw.polygon( (polygon[:, 0] )/resolution, (polygon[:, 1] ) /resolution, shape=shape)
+                label_img[rr, cc] = 1
+            else:
+                for i in range(len(polygon_ind)):
+                    polygon = np.asarray(self.polygons[polygon_ind[i]]).squeeze() + shift_vec
+                    rr, cc = draw.polygon( (polygon[:, 0] )/resolution, (polygon[:, 1] ) /resolution, shape=shape)
+                    label_img[rr, cc] = 1
+            return label_img
