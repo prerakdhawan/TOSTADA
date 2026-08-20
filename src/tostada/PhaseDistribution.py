@@ -1,6 +1,7 @@
 import cv2
 import autograd.numpy as np
 from skimage import filters, measure
+from skimage.color import rgb2gray
 import matplotlib.pyplot as plt
 import tostada.Statistics as stats
 from tostada.Statistics import Morphology
@@ -162,7 +163,7 @@ class PhaseDistribution:
         self.Xq_averaged = stats.angular_average(self.Xq,dkx=2*np.pi/self.Lx)
         return self.Xq,self.Xq_averaged
     
-    def get_morphological_parameters(self,**kwargs):
+    def get_morphological_parameters(self,detect_pores = True,**kwargs):
         def isin_box(v):
             return np.logical_and(np.greater(v, coords_min ), np.less(v, coords_max ) )
         coords_max = np.array([self.BoxSize[0]-1 , self.BoxSize[1]-1  ])
@@ -179,7 +180,8 @@ class PhaseDistribution:
             if (np.bool(np.prod(mask))):
                 poly = measure.approximate_polygon(poly,tolerance=tol)[:,None]*self.resolution
                 polygons.append(poly)
-        properties = measure.regionprops(measure.label(self.image))
+        img_ = np.logical_not(self.image) if detect_pores == True else self.image
+        properties = measure.regionprops(measure.label(img_))
         positions = np.array([p.centroid for p in properties])
         regionprops = properties
         return polygons, positions, regionprops

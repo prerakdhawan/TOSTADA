@@ -407,10 +407,12 @@ class Morphology:
         for i in range(num_poly):
             poly = polygons[i].reshape(-1,2)
             den = self.polygon_normals_and_lengths(poly)
+            if (len(den)==0):
+                continue
             psi_ = np.sum(den[:,0]*np.exp(1j*np.outer(s,den[:,1])),axis=1)
             psi[i,:] = np.abs(psi_)/np.abs(psi_[0])
             psi[i,0] = np.abs(psi_[0])
-            thetas[i,:] = np.nan_to_num(np.angle(psi_)/s)
+            thetas[i,:] = np.nan_to_num(np.angle(psi_)/(s+1e-10))
         return psi,thetas
 
     def misorientation_angles(self, k_neighbors=6, target=np.pi/3):

@@ -63,7 +63,7 @@ class Visualize:
         else:
             raise ValueError("Unsupported class type. Please provide an instance of PointDistribution or PhaseDistribution.")
         
-    def plot_real_space_correlation(self,ax=None,dr=None,Rmax=10,vmax=20,cmap='cividis'):
+    def plot_real_space_correlation(self,ax=None,dr=None,Rmax=None,vmax=20,cmap='cividis'):
         """
         Plots two-point statistics of the dataset. 
         If PointDistribution, plots the two-point correlation function g_2(r). If PhaseDistribution, plots the auto-covariance ACF(r).
@@ -73,6 +73,8 @@ class Visualize:
             fig = plt.figure(figsize=(14, 6))
             ax1 = fig.add_subplot(1,2,1)
             ax2 = fig.add_subplot(1,2,2)
+        if (Rmax is None):
+            Rmax = self.distribution.Lx/4
         if isinstance(self.distribution, PointDistribution):
             #return self._plot_structurefactor(ax,kmax,vmax,cmap)
             return self._plot_g2r([ax1,ax2],dr,Rmax,vmax,cmap)
@@ -382,7 +384,7 @@ class Visualize:
         vmax = kwargs.get('vmax',1) if plot_data is None else kwargs.get('vmax',np.max(plot_data))
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
 
-        colormap = cm.get_cmap(cmap)
+        colormap = plt.get_cmap(cmap)
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
         for poly_coords, val in zip(mor.polygons[skipind:], values[skipind:]):
@@ -402,7 +404,7 @@ class Visualize:
 
     def plot_fields(self,ind=None,ax=None, 
                     cmap='turbo', vmax=None, vmin=None,
-                    field=['sigxx','sigxy','sigyy','sigvm','sigp1','sigp2', 'epsxx', 'epsxy','epsyy','u','v'],**kwargs):
+                    field=['sigxx','sigxy','sigyy','sigvm','sigp1','sigp2', 'epsxx', 'epsxy','epsyy','u','v'],damage_history=None,**kwargs):
         """
         Plots the stress/strain or displacements derived from `tostada.Physics.LatticeParticleMethod`. 
         
@@ -464,22 +466,22 @@ class Visualize:
             field_data = self.distribution.sigma_history[ind,int(_i),:].copy()  
                     
         elif ('eps' in field):
-            sigma_blur = kwargs.get('sigma',None)
-            gradient_mode = kwargs.get('mode',None)
-            Eps = self.distribution.get_strains(sigma=sigma_blur, mode = gradient_mode) 
+            Eps = self.distribution.get_strains( )#mode = gradient_mode) 
             field_data = (Eps[int(_i - 6)].T.flatten()).copy() # -6 because the first 6 are the stresses
 
         elif ( np.logical_or('v' in field, 'u' in field)):
             uv = self.distribution.get_displacements()
             field_data = uv[int(_i - 9)].copy()
-        field_data[self.distribution.exclusions] = np.nan    
-        if not hasattr(self, 'damage_hist'):
-            damage = self.distribution.exclusions
+        #field_data[self.distribution.exclusions] = np.nan    
+        if not hasattr(self.distribution, 'Damage_history'):
+            exclusion_roi = self.distribution.exclusions
         else:
-            damage = self.damage_hist[ind]
-        field_data[damage]=np.nan
+            damage_roi = np.where(self.distribution.Damage_history[ind]>0.96)[0]
+            exclusion_roi = np.append(self.distribution.init_exclusions,damage_roi)
 
-        _fig = ax.imshow(cp.asnumpy(self.distribution.reshape_fields(field_data)).T,origin='lower',cmap=cmap, interpolation='nearest',
+        field_data_ = field_data.copy()
+        field_data_[exclusion_roi]=np.nan
+        _fig = ax.imshow(cp.asnumpy(self.distribution.reshape_fields(field_data_)).T,origin='lower',cmap=cmap, interpolation=kwargs.get('interpolation','nearest'),
                   vmax=vmax,vmin=vmin,extent=[0,self.distribution.Lx,0,self.distribution.Ly])
         cbar=ax.figure.colorbar(_fig,ax=ax)
         formatter = ScalarFormatter(useMathText=True)
