@@ -377,26 +377,43 @@ class PointDistribution:
         """
         return (2*copies + 1) * np.array(self.BoxSize)
 
-
     def Hermitiansymmetry(self,data):
         """
-        Uses Hermitian Symmetry for creating full data in 2D/3D. Currently only used for StructureFactor for S(-k) = S(k). 
+        Uses Hermitian Symmetry for creating full data in 2D/3D. Currently only used for StructureFactor for S(-k) = S(k).
         For mapping vectors (without the symmetry), the signs are flipped.
+
         Parameters:
-        data (numpy.ndarray): half-arrays to be extruded with symmetry condition. data[0],data[1],... are mapping vectors and data[-1] is array with hermitian symmetry.
+        data : numpy.ndarray
+            half-arrays to be extruded with symmetry condition. data[0], data[1], ... are mapping vectors and data[-1] is array with hermitian symmetry.
         """
         Data_full = []
         for i in range(data.shape[0]):
-            _shape = data[i].shape[1] #shape0 is half 
-            slice_full =  jnp.zeros([_shape]*self.ndim,dtype=jnp.float32)
-            slice_full = slice_full.at[data[i].shape[0]:].set(data[i][1:])
-            #slice_full[data[i].shape[0]:] = data[i][1:]
-            obj = jnp.rot90(jnp.rot90((data[i]),k=self.ndim-1,axes=(0,1)),k=self.ndim-1,axes=(int(0+self.is_3D),int(1+self.is_3D))) 
-            if self.is_3D==True:
-                obj = jnp.flip(obj,axis=1)
-            #slice_full[:data[i].shape[0]] = jnp.power(-1,i<self.ndim)*obj
-            #slice_full = slice_full.at[:data[i].shape[0]].set(jnp.power(-1,int(i<self.ndim))*obj)
-            slice_full = slice_full.at[:data[i].shape[0]].set(jnp.power(-1,int(i<self.ndim))*jnp.conjugate(obj))
+            if self.is_3D == False:
+                if i == 0:
+                    # KX: extend only along the kx axis and reverse its sign
+                    slice_full = jnp.concatenate(
+                        (-jnp.flip(data[i][:, 1:], axis=1), data[i]),axis=1) 
+                elif i == 1:
+                    # KY: preserve the ky ordering on both sides of the grid
+                    slice_full = jnp.concatenate((data[i][:, 1:], data[i]),axis=1) 
+                else:
+                    # S(-kx, ky) = S(kx, -ky)
+                    mirror = jnp.flip(data[i][:, 1:],axis=(0, 1)) 
+                    slice_full = jnp.concatenate((mirror, data[i]),axis=1)
+            else:
+                if i == 0:
+                    # KX: extend only along the kx axis and reverse its sign
+                    slice_full = jnp.concatenate((-jnp.flip(data[i][:, 1:, :], axis=1), data[i]),axis=1) 
+                elif i == 1:
+                    # KY: preserve the ky ordering
+                    slice_full = jnp.concatenate((data[i][:, 1:, :], data[i]),axis=1)
+                elif i == 2:
+                    # KZ: preserve the kz ordering
+                    slice_full = jnp.concatenate((data[i][:, 1:, :], data[i]),axis=1)
+                else:
+                    # S(-kx, ky, kz) = S(kx, -ky, -kz)
+                    mirror = jnp.flip(data[i][:, 1:, :],axis=(0, 1, 2))
+                    slice_full = jnp.concatenate((mirror, data[i]),axis=1)
             Data_full.append(slice_full)
         return jnp.asarray(Data_full)
 
@@ -444,11 +461,11 @@ class PointDistribution:
         kz1d = jnp.concatenate([kz1d_2, kz1d], axis=0)
 
         if (self.is_3D==False):
-            kx_grid, ky_grid = jnp.meshgrid(jnp.around(ky1d,4), jnp.around(kx1d,4))#, indexing='ij')
+            kx_grid, ky_grid = jnp.meshgrid(jnp.around(kx1d,4), jnp.around(ky1d,4))#, indexing='ij')
             KZ = jnp.zeros(jnp.ravel(kx_grid).shape[0],dtype=jnp.float32)
             data = jnp.asarray([kx_grid,ky_grid])
         else:
-            kx_grid, ky_grid, kz_grid = jnp.meshgrid(jnp.around(ky1d,4),jnp.around(kx1d,4),jnp.around(kz1d,4))
+            kx_grid, ky_grid, kz_grid = jnp.meshgrid(jnp.around(kx1d,4),jnp.around(ky1d,4),jnp.around(kz1d,4))
             KZ = jnp.ravel(kz_grid)
             data = jnp.asarray([kx_grid,ky_grid,kz_grid])
         
@@ -824,13 +841,13 @@ class PointDistribution:
                 valid_edges.append((v0, v1))
         valid_edges = np.array(valid_edges)
         rand_edges = np.random.randint(0,valid_edges.shape[0],skip_edges) if skip_edges is not None else None
-        psi = np.zeros([int((x_max-x_min)/resolution),int((y_max - y_min)/resolution) ])
+        psi = np.zeros([int((y_max-y_min)/resolution),int((x_max - x_min)/resolution) ])
         #psi = np.zeros(np.int32(np.array(self.BoxSize)[:self.ndim]/resolution  ))
         for i,(v0, v1) in enumerate(valid_edges):
-            v0_ = np.int64((v0 + x_max)/resolution)
-            v1_ = np.int64((v1 + x_max)/resolution)
+            v0_ = np.int64((v0 - np.array([x_min, y_min]))/resolution)
+            v1_ = np.int64((v1 - np.array([x_min, y_min]))/resolution)
                 #line(v0_,v0_[1])
-            line_mask = line(v0_[0],v0_[1],v1_[0],v1_[1])
+            line_mask = line(v0_[1],v0_[0],v1_[1],v1_[0])
             if (np.isin(i,rand_edges)):
                 continue
             else:
