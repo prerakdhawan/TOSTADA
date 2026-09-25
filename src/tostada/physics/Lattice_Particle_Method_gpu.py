@@ -4,7 +4,6 @@ from scipy.spatial import cKDTree
 import matplotlib.pyplot as plt
 #from scipy.ndimage import gaussian_filter
 from cupyx.scipy.ndimage import gaussian_filter
-from tostada.util.materials import Material
 import pickle
 import os
 """
@@ -27,7 +26,8 @@ if USE_GPU:
         import cupy as cp
         cp.asarray([0])
         from cupyx.scipy.ndimage import gaussian_filter
-        print("GPU detected. Using CUDA")
+        #print("GPU detected. Using CUDA")
+        import warnings; warnings.warn("GPU detected. Using CUDA", stacklevel=2)
         def asnumpy(x):
             return cp.asnumpy(x)
     except Exception as e:
@@ -1075,6 +1075,72 @@ class LatticeParticleMethod:
         #sigma_ = self.mac_func(sigma_p1) + self.mac_func(sigma_p2)
         #return sigma_
 
+    def stress_drucker_prager(self,Forces=None,**kwargs):
+        """
+        Get stresses in the system according to drucker prager model (https://doi.org/10.1016/j.engfracmech.2024.110203).
+        """
+        if (Forces is None):
+            sigma_eff_xx, sigma_eff_xy, sigma_eff_yy = self.stress_from_constitutive_relations()
+            sigma1_eff=(sigma_eff_xx+sigma_eff_yy)/2 + cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
+            sigma2_eff=(sigma_eff_xx+sigma_eff_yy)/2 - cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
+            von_mises = cp.sqrt( np.power(sigma_eff_xx,2) + np.power(sigma_eff_yy,2) + 3*np.power(sigma_eff_xy,2) - (sigma_eff_xx*sigma_eff_yy) )
+        else:
+            self.stresses = cp.asarray(self.get_stresses(Forces))
+            sigma_eff_xx,sigma_eff_xy,sigma_eff_yy,von_mises,sigma1_eff,sigma2_eff = self.stresses
+        
+        I1 = sigma_eff_xx + sigma_eff_yy
+        sxx_d = sigma_eff_xx - I1/2
+        syy_d = sigma_eff_yy - I1/2
+        sxy_d = sigma_eff_xy
+        J2 = 0.5*(sxx_d**2 + syy_d**2 + 2*sxy_d**2)
+        #denom = cp.sqrt(3)*(self.Material.compressive_strength + self.Material.tensile_strength)
+        #alpha = (self.Material.compressive_strength - self.Material.tensile_strength)/ denom
+        #beta = (self.Material.compressive_strength/self.Material.tensile_strength) - 1        
+        #H = (2*self.Material.compressive_strength * self.Material.tensile_strength) / denom
+        #sigma_dp = (1/(1+beta)) * (beta * self.mac_func(cp.maximum(sigma1_eff,sigma2_eff)) + cp.sqrt(3*J2))
+        sigma_dp =( ((self.Material.compressive_strength - self.Material.tensile_strength)/(2*self.Material.compressive_strength)) * I1 
+                    + ((self.Material.compressive_strength+self.Material.tensile_strength)/(2*self.Material.compressive_strength)) * cp.sqrt(3*J2) )
+        #sigma_dp = self.mac_func(cp.maximum(sigma1_eff,sigma2_eff))
+        sigma_dp = gaussian_filter(sigma_dp,sigma=kwargs.get('sigma',1), truncate=kwargs.get('truncate',3)) #,mode=mode)
+        return sigma_dp
+    
+    def stress_ottosen(self,Forces=None,**kwargs):
+        """
+        Get stresses in the system according to Ottosen model (https://doi.org/10.1016/j.engfracmech.2024.110203).
+        """
+        if (Forces is None):
+            sigma_eff_xx, sigma_eff_xy, sigma_eff_yy = self.stress_from_constitutive_relations()
+            sigma1_eff=(sigma_eff_xx+sigma_eff_yy)/2 + cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
+            sigma2_eff=(sigma_eff_xx+sigma_eff_yy)/2 - cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
+            von_mises = cp.sqrt( np.power(sigma_eff_xx,2) + np.power(sigma_eff_yy,2) + 3*np.power(sigma_eff_xy,2) - (sigma_eff_xx*sigma_eff_yy) )
+        else:
+            self.stresses = cp.asarray(self.get_stresses(Forces))
+            sigma_eff_xx,sigma_eff_xy,sigma_eff_yy,von_mises,sigma1_eff,sigma2_eff = self.stresses
+        K1 = kwargs.get('K1',14.4)
+        K2 = kwargs.get('K2',1.00)
+        A = kwargs.get('A',1.8)
+        B = kwargs.get('B',4.1)
+        I1 = sigma_eff_xx + sigma_eff_yy
+        I3 = 0# for 2D plane stress, I3=0
+        I2 = 0.5 * (I1**2 - (sigma_eff_xx**2 + sigma_eff_yy**2 + 2*sigma_eff_xy**2))
+        sxx_d = sigma_eff_xx - I1/3
+        syy_d = sigma_eff_yy - I1/3
+        szz_d = - I1/3
+        sxy_d = sigma_eff_xy
+        #J2 = 0.5*(sxx_d**2 + syy_d**2 + szz_d**2 + 2*sxy_d**2)
+        #J2 = von_mises**2/3
+        J2 = (1/3)*(I1)**2 - I2
+        J3 = szz_d*(sxx_d * syy_d - sxy_d**2) #(2/27)*I1**3 - (1/2)*I1*I2
+        cos3theta = cp.clip((3*cp.sqrt(3)/2) * J3/ (1e-16 + cp.power(J2,3/2)),-1,1)
+        theta = cp.arccos(cp.nan_to_num(cos3theta))/3
+        self.lode_angles = theta
+#        lam = cp.where(theta<=cp.pi/6,K1*cp.cos(theta), K1*cp.cos(cp.pi/3 + (cp.pi - theta)) )
+        lam = cp.where(theta<=cp.pi/6, K1*cp.cos((1/3)*cp.arccos(K2*cos3theta)), K1*cp.cos(cp.pi/3 - (1/3)*cp.arccos(-K2*cos3theta)))
+        #lam = cp.where(cos3theta>=0, K1*cp.cos((1/3)*cp.arccos(K2*cos3theta)), K1*cp.cos( (1/3)*cp.arccos(-K2*cos3theta)))
+        b = lam*cp.sqrt(J2) + B*I1
+        sigma_dp = (b + cp.sqrt(b**2 + 4*A*J2) )/2
+        #sigma_dp = gaussian_filter(sigma_dp,sigma=kwargs.get('sigma',1), truncate=kwargs.get('truncate',3)) #,mode=mode)
+        return sigma_dp
     
     def damage_evolution(self,current_stresses, max_stresses, tensile_strength, degradation_rate):
         """
