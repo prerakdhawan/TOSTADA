@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from cupyx.scipy.ndimage import gaussian_filter
 from tostada.util.materials import Material
 import pickle
-
+import os
+"""
 try:
     import cupy as cp
     cp.asarray([0])
@@ -16,6 +17,29 @@ try:
 except Exception as e:
     print (f"GPU not available : {e}")
     import numpy as cp
+    def asnumpy(x):
+        return x
+"""    
+USE_GPU = os.getenv("USE_GPU", "1") == "1"
+
+if USE_GPU:
+    try:
+        import cupy as cp
+        cp.asarray([0])
+        from cupyx.scipy.ndimage import gaussian_filter
+        print("GPU detected. Using CUDA")
+        def asnumpy(x):
+            return cp.asnumpy(x)
+    except Exception as e:
+        print(f"GPU not available: {e}")
+        import numpy as cp
+        from scipy.ndimage import gaussian_filter
+        def asnumpy(x):
+            return x
+else:
+    import numpy as cp
+    from scipy.ndimage import gaussian_filter
+    print("GPU disabled by user. Using CPU")
     def asnumpy(x):
         return x
     
@@ -47,6 +71,7 @@ class LatticeParticleMethod:
         self.scale = scale #converting to meters
         self.Phase = Phase
         self.image = self.Phase.image
+        self.Material = Material
         self.thickness = thickness
         self.n_particles = np.size(self.image)#positions.shape[0]
         self.dx = Phase.resolution*self.scale  
@@ -87,10 +112,10 @@ class LatticeParticleMethod:
         self.exclusions_bulk = self.exclusions[exclusion_bulk]
         self.inclusions = np.where(np.isin(np.arange(self.init_positions.shape[0]), self.exclusions), False, True) 
         self.inclusions_cp = cp.asarray(self.inclusions)
-        self.right_edge = cp.asarray(np.bool(self.boundary_condition(edge='right',value=True,remove_exclusions=False)))
-        self.left_edge = cp.asarray(np.bool(self.boundary_condition(edge='left',value=True,remove_exclusions=False)))
-        self.top_edge = cp.asarray(np.bool(self.boundary_condition(edge='top',value=True,remove_exclusions=False)))
-        self.bottom_edge = cp.asarray(np.bool(self.boundary_condition(edge='bottom',value=True,remove_exclusions=False)))
+        #self.right_edge = cp.asarray(np.bool(self.boundary_condition(edge='right',value=True,remove_exclusions=False)))
+        #self.left_edge = cp.asarray(np.bool(self.boundary_condition(edge='left',value=True,remove_exclusions=False)))
+        #self.top_edge = cp.asarray(np.bool(self.boundary_condition(edge='top',value=True,remove_exclusions=False)))
+        #self.bottom_edge = cp.asarray(np.bool(self.boundary_condition(edge='bottom',value=True,remove_exclusions=False)))
         self.D0 = self.get_initial_dist_new()
         
     @property
@@ -152,11 +177,20 @@ class LatticeParticleMethod:
         [_y,_x] = np.meshgrid(np.arange(self.image.shape[1]),np.arange(self.image.shape[0])) # 0,1
         positions = np.c_[_x.ravel(),_y.ravel()]*self.dx
         return positions
+    
+    def fetch_index(self,x,y):
+        return np.argmin(np.abs(self.positions[:,0]-x) + np.abs(self.positions[:,1]-y) )
 
     def boundary_indices(self):
         ind = self.pairlist0[:,0]
-        corner_ind = np.where( (ind == 0) | (ind == self.image.shape[0] - 1) | (ind == self.image.shape[0] * (self.image.shape[1]-1)) | (ind == self.image.size-1))[0]
-        edge_ind = np.where( ( (ind < self.image.shape[0] - 1) & (ind > 0) ) | (ind % self.image.shape[0] == 0) | ((ind - (self.image.shape[0]-1)) % self.image.shape[0] == 0) | ( (ind > (self.image.shape[0] * (self.image.shape[1]-1))) & (ind < self.image.size) ))[0]
+        self.left_edge=np.arange(self.fetch_index(0,0),self.fetch_index(0,self.Ly)+1)
+        self.right_edge=np.arange(self.fetch_index(self.Lx,0),self.fetch_index(self.Lx,self.Ly)+1)
+        self.bottom_edge=np.arange(self.fetch_index(0,0),self.fetch_index(self.Lx,0)+1,self.image.shape[1])
+        self.top_edge=np.arange(self.fetch_index(0,self.Ly),self.fetch_index(self.Lx,self.Ly)+1,self.image.shape[1])
+        edge_ind = np.hstack([self.left_edge,self.right_edge,self.bottom_edge,self.top_edge])
+        corner_ind = np.hstack([self.fetch_index(0,0),self.fetch_index(0,self.Ly),self.fetch_index(self.Lx,0),self.fetch_index(self.Lx,self.Ly)])
+        #corner_ind = np.where( (ind == 0) | (ind == self.image.shape[0] - 1) | (ind == self.image.shape[0] * (self.image.shape[1]-1)) | (ind == self.image.size-1))[0]
+        #edge_ind = np.where( ( (ind < self.image.shape[0] - 1) & (ind > 0) ) | (ind % self.image.shape[0] == 0) | ((ind - (self.image.shape[0]-1)) % self.image.shape[0] == 0) | ( (ind > (self.image.shape[0] * (self.image.shape[1]-1))) & (ind < self.image.size) ))[0]
         bulk_ind = ind[~np.isin(ind,edge_ind)]
         edge_ind = edge_ind[~np.isin(edge_ind, corner_ind)]
         return corner_ind,bulk_ind,edge_ind
@@ -192,15 +226,34 @@ class LatticeParticleMethod:
         Lx = self.Lx if Lx is None else Lx
         Ly = self.Ly if Ly is None else Ly
         inclusion_roi = cp.bool_(self.inclusions**only_inclusions)
-        right_ind = cp.where(self.right_edge[inclusion_roi] )[0]
-        left_ind = cp.where(self.left_edge[inclusion_roi] )[0]
-        top_ind = cp.where(self.top_edge[inclusion_roi])[0]
-        bottom_ind = cp.where(self.bottom_edge[inclusion_roi])[0]
-        
-        _maskleft = cp.isin(self.pairlist0_cp[inclusion_roi][left_ind],cp.where(self.right_edge)[0])
-        _maskright = cp.isin(self.pairlist0_cp[inclusion_roi][right_ind],cp.where(self.left_edge)[0])
-        _masktop = cp.isin(self.pairlist0_cp[inclusion_roi][top_ind],cp.where(self.bottom_edge)[0])
-        _maskbottom = cp.isin(self.pairlist0_cp[inclusion_roi][bottom_ind],cp.where(self.top_edge)[0])
+
+        right_ind = cp.full(self.n_particles,False)
+        right_ind[self.right_edge]=True
+        left_ind = cp.full(self.n_particles,False)
+        left_ind[self.left_edge]=True        
+        top_ind = cp.full(self.n_particles,False)
+        top_ind[self.top_edge]=True
+        bottom_ind = cp.full(self.n_particles,False)
+        bottom_ind[self.bottom_edge]=True
+
+        right_ind = cp.where(right_ind[inclusion_roi] )[0]
+        left_ind = cp.where(left_ind[inclusion_roi] )[0]
+        top_ind = cp.where(top_ind[inclusion_roi])[0]
+        bottom_ind = cp.where(bottom_ind[inclusion_roi])[0]
+#        right_ind = cp.asarray(self.right_edge[~np.isin(self.right_edge, self.exclusions)]) if only_inclusions == True else cp.asarray(self.right_edge) #cp.where(self.right_edge[inclusion_roi] )[0]
+#        left_ind = cp.asarray(self.left_edge[~np.isin(self.left_edge, self.exclusions)]) if only_inclusions == True else cp.asarray(self.left_edge) #cp.where(self.left_edge[inclusion_roi] )[0]
+#        top_ind = cp.asarray(self.top_edge[~np.isin(self.top_edge, self.exclusions)]) if only_inclusions == True else cp.asarray(self.top_edge) #cp.where(self.top_edge[inclusion_roi])[0]
+#        bottom_ind = cp.asarray(self.bottom_edge[~np.isin(self.bottom_edge, self.exclusions)]) if only_inclusions == True else cp.asarray(self.bottom_edge) #cp.where(self.bottom_edge[inclusion_roi])[0]
+
+        _maskleft = cp.isin(self.pairlist0_cp[inclusion_roi][left_ind],cp.asarray(self.right_edge))
+        _maskright = cp.isin(self.pairlist0_cp[inclusion_roi][right_ind],cp.asarray(self.left_edge))
+        _masktop = cp.isin(self.pairlist0_cp[inclusion_roi][top_ind],cp.asarray(self.bottom_edge))
+        _maskbottom = cp.isin(self.pairlist0_cp[inclusion_roi][bottom_ind],cp.asarray(self.top_edge))
+
+        #_maskleft = cp.isin(self.pairlist0_cp[left_ind],right_ind)#cp.where(self.right_edge)[0])
+        #_maskright = cp.isin(self.pairlist0_cp[right_ind],left_ind)#cp.where(self.left_edge)[0])
+        #_masktop = cp.isin(self.pairlist0_cp[top_ind],bottom_ind)#cp.where(self.bottom_edge)[0])
+        #_maskbottom = cp.isin(self.pairlist0_cp[bottom_ind],top_ind)#cp.where(self.top_edge)[0])
 
         shifts_lr = cp.array([Lx,0])@ affine_matrix
         shifts_ud = cp.array([0,Ly])@ affine_matrix
@@ -231,11 +284,28 @@ class LatticeParticleMethod:
         #return SpringMatrix.get()  # Return as NumPy array if needed
         #return asnumpy(SpringMatrix)
         return SpringMatrix
+
+    @staticmethod
+    def minimum_image_xy(vec, Lx, Ly, affine_matrix=None):
+        vec = cp.array(vec)
+        #if Lz is None:
+        #    vec[:,:,:2] = vec[:,:,:2] - cp.array([Lx, Ly]) * cp.round(vec[:,:,:2] / cp.array([Lx, Ly]))
+        #    return vec
+        #else:
+        #    return vec - cp.array([Lx,Ly,Lz]) * cp.round(vec / cp.array([Lx,Ly,Lz]))
+        box = cp.array([Lx, Ly])
+        disp = vec[..., :2] - box * cp.round(vec[..., :2] / box)
+        if affine_matrix is not None:
+            # Treat disp as row‑vectors; CuPy broadcasts last axis as matrix dim
+            disp = disp @ affine_matrix
+        vec[..., :2] = disp
+        return vec
     
     def get_initial_dist_new(self):
         _idx = self.pairlist0_cp
         D0_new = self.init_positions_cp[_idx[:, 0]][:, None] - self.init_positions_cp[_idx]
         if (self.is_periodic):
+            #D0_new = self.minimum_image_xy(D0_new,self.Lx,self.Ly)
             D0_new = self.periodize_boundaries(Distance_pairs=D0_new,only_inclusions=False)
         D0_new = cp.linalg.norm(D0_new, axis=2)
         ###corner_ind_cp = cp.asarray(self.corner_ind)
@@ -291,6 +361,7 @@ class LatticeParticleMethod:
             L_y = kwargs.get('Ly',None)
             affine_matrix = kwargs.get('affine_matrix',cp.eye(2))
             _Dnew = self.periodize_boundaries(Distance_pairs=_Dnew,Lx=L_x,Ly=L_y,only_inclusions=True, affine_matrix=affine_matrix)
+            #_Dnew = self.minimum_image_xy(_Dnew,Lx=L_x,Ly=L_y,affine_matrix=affine_matrix) 
         __Dnew = cp.linalg.norm(_Dnew, axis=2)
         Dnew = cp.zeros([self.positions.shape[0],9])
         Dnew[_idx[:,0]] = __Dnew
@@ -398,20 +469,23 @@ class LatticeParticleMethod:
     #        self.StrainMatrix = np.zeros_like(self.D0)
     #        self.StrainMatrix[_mask] = Dnew - self.D0[_mask]
         self.StrainMatrix = Dnew - self.D0
-        self.SpringMatrix = self.get_spring_matrix()
+        self.SpringMatrix = getattr(self, 'SpringMatrix', self.get_spring_matrix()) #self.get_spring_matrix()
         self.StrainMatrix = self.StrainMatrix*self.mask_cp # New. Forces strains to be zero at exclusion sites
         Force_local = self.SpringMatrix * self.StrainMatrix
-        sum_contrib_dense = cp.sum(self.StrainMatrix, axis=1)
+        dij = damage_array[self.pairlist0_cp]*1
+        dij_avg = 1*0.5 * (damage_array[:,None]*cp.ones_like(self.pairlist0_cp) ) +1* 0.5 * dij
+
+        sum_contrib_dense = cp.sum((1-dij)*self.StrainMatrix, axis=1) #!cp.sum(self.StrainMatrix, axis=1)
         sum_contrib_dense[self.exclusions] = 0 #new 
 
         Force_nonlocal = sum_contrib_dense[self.pairlist0_cp]
         
-        dij = damage_array[self.pairlist0_cp]*1
-        dij_avg = 1*0.5 * (damage_array[:,None]*cp.ones_like(self.pairlist0_cp) ) +1* 0.5 * dij
+        #!dij = damage_array[self.pairlist0_cp]*1
+        #!dij_avg = 1*0.5 * (damage_array[:,None]*cp.ones_like(self.pairlist0_cp) ) +1* 0.5 * dij
 
         if (self.mode=='plane-strain'):
             ###self.Force = Force_local*(1-dij_avg) + 0.5* (2*np.sqrt(2)-3)*self.T * sum_contrib_dense[:, None] * mask * (1 - 1*damage_array[:,None])  #np.ones([self.positions.shape[0], 9])
-            Force = Force_local*(1-dij_avg) + 0.5* (2*cp.sqrt(2)-3)*self.T * sum_contrib_dense[:, None] * self.mask_cp * (1 - 1*damage_array[:,None])  #np.ones([self.positions.shape[0], 9])
+            Force = Force_local*(1-dij_avg) + 0.5* (2*cp.sqrt(2)-3)*self.T * sum_contrib_dense[:, None] * self.mask_cp #! * (1 - 1*damage_array[:,None])  #np.ones([self.positions.shape[0], 9])
             Force_nonlocal = Force_nonlocal#*mask . not needed
             Force_nonlocal[:,0] = 0 #zeroth column is local force
             dij_ = dij.copy()
@@ -422,7 +496,7 @@ class LatticeParticleMethod:
         else:
             #Es = self.get_Es(cp.asarray(sum_contrib_dense))
             ###self.Force = Force_local*(1-dij_avg) + 0.5 * self.T * sum_contrib_dense[:, None] * mask * (1 - damage_array[:,None])
-            Force = Force_local*(1-dij_avg) + 0.5 * self.T * sum_contrib_dense[:, None] * self.mask_cp * (1 - damage_array[:,None])
+            Force = Force_local*(1-dij_avg) + 0.5 * self.T * sum_contrib_dense[:, None] * self.mask_cp  * (1 - damage_array[:,None])
             #self.Force = Force_local + 0.5*self.T * Es[:, None] * mask#np.ones([self.positions.shape[0], 9])
             Force_nonlocal = Force_nonlocal#*mask
             Force_nonlocal[:,0] = 0
@@ -514,7 +588,7 @@ class LatticeParticleMethod:
         dLy = 2*((np.max(self.positions[:,0]) - np.max(self.init_positions[:,1])))
         return dLx,dLy,dLx+np.max(self.init_positions[:,0]),dLy+np.max(self.init_positions[:,1])
     
-    def get_strains(self,sigma=None,mode=None):#0.6):
+    def get_strains_old(self,mode=None,**kwargs):#0.6):
         """
         Computes the Green-Lagrange components of the strain tensor from the displacements. Directly comparable with COMSOL.
         
@@ -532,7 +606,7 @@ class LatticeParticleMethod:
         Strain tensor components. Since the code is 2D, currently, only gives Eps_xx,Eps_xy and Eps_yy.
         """
         mode = 'nearest' if mode is None else mode
-        sigma_gradient = 1.3*((self.Lx/100) / (2*(cp.sqrt(2*cp.log(2)))*self.dx) ) if sigma is None else sigma
+        sigma_gradient = kwargs.get('sigma',1.4*((self.Lx/100) / (2*(cp.sqrt(2*cp.log(2)))*self.dx) ) )
         self.sigma_gradient = sigma_gradient
         #print ('selected sigma = {s}'.format(s=self.sigma_gradient))
         mask = cp.asarray(self.image)
@@ -552,6 +626,76 @@ class LatticeParticleMethod:
         Eps_yy = 0.5*(2*dV_dy + 0*dU_dy**2 + 0*dV_dy**2)
         Eps_xy = 0.5*(dU_dy + dV_dx + 0*dU_dx*dU_dy + 0*dV_dx*dV_dy)
         return Eps_xx,Eps_xy,Eps_yy
+    
+    def get_strains(self): 
+        """
+        Computes the Green-Lagrange components of the strain tensor from the displacements. To be tested with COMSOL.
+        
+        Parameters
+        ----------
+
+        sigma : float
+            Smoothening parameter for the derivate at the pore/solid interface. If None, computes sigma based on the resolution.
+
+        mode : str
+            Mode for applying gaussian filter. Options are `nearest`, `wrap` (for periodic), 'reflect', 'constant', 'mirror'.
+
+        Returns
+        -------
+        Strain tensor components. Since the code is 2D, currently, only gives Eps_xx,Eps_xy and Eps_yy.
+        """
+        eps_ij = cp.nan_to_num(self.StrainMatrix/self.D0)
+        eps_bond = eps_ij[:, 1:]            # (N, 8)
+        #mask_ = ~np.isin(self.pairlist, self.exclusions)
+        # 2. Neighbor-level mask: True where neighbor is valid solid neighbor
+        neigh_mask = self.mask_cp[:,1:] #cp.asarray(mask_[:, 1:])   # (N, 8) boolean
+        mask = neigh_mask.astype(cp.float32)          # 1.0 or 0.0
+
+        # 3. Apply mask to neighbors (invalid neighbors contribute zero)
+        nx = self.UnitVectorMatrix_x[:, 1:] * mask
+        ny = self.UnitVectorMatrix_y[:, 1:] * mask
+        eps_bond = eps_bond * mask
+
+        # 4. Build coefficients
+        a1 = nx**2              # (N, 8)
+        a2 = 2.0 * nx * ny      # (N, 8)
+        a3 = ny**2              # (N, 8)
+        M11 = cp.einsum('ik,ik->i', a1, a1)
+        M12 = cp.einsum('ik,ik->i', a1, a2)
+        M13 = cp.einsum('ik,ik->i', a1, a3)
+        M22 = cp.einsum('ik,ik->i', a2, a2)
+        M23 = cp.einsum('ik,ik->i', a2, a3)
+        M33 = cp.einsum('ik,ik->i', a3, a3)                      
+        
+        b1 = cp.einsum('ik,ik->i', a1, eps_bond)
+        b2 = cp.einsum('ik,ik->i', a2, eps_bond)
+        b3 = cp.einsum('ik,ik->i', a3, eps_bond)
+        
+        M = cp.stack([
+            cp.stack([M11, M12, M13], axis=1),
+            cp.stack([M12, M22, M23], axis=1),
+            cp.stack([M13, M23, M33], axis=1),
+        ], axis=1)      
+        b = cp.stack([b1, b2, b3], axis=1)    # (N, 3)
+        valid_particles = self.inclusions #particle_mask.astype(bool)
+
+        # 8. Regularization and solve (batched)
+        reg = 1e-10
+        I = cp.eye(3, dtype=M.dtype)[None, :, :]
+        M_reg = M + reg * I
+
+        eps_xx = cp.full(self.n_particles, 0, dtype=cp.float32)
+        eps_xy = cp.full(self.n_particles, 0, dtype=cp.float32)
+        eps_yy = cp.full(self.n_particles, 0, dtype=cp.float32)
+
+        M_sel = M_reg[valid_particles]   # (Nv,3,3)
+        b_sel = b[valid_particles]       # (Nv,3)
+        E_sel = cp.linalg.solve(M_sel, b_sel)  # (Nv,3)
+        eps_xx[valid_particles] = E_sel[:, 0]
+        eps_xy[valid_particles] = E_sel[:, 1]
+        eps_yy[valid_particles] = E_sel[:, 2]
+
+        return eps_xx, eps_xy, eps_yy
 
     def strain_energy(self):
         StrainEnergy=cp.sum(self.SpringMatrix*self.StrainMatrix**2,axis=1) + 0.5 * self.T * cp.sum(self.StrainMatrix,axis=1)*cp.sum(self.StrainMatrix,axis=1)
@@ -699,101 +843,141 @@ class LatticeParticleMethod:
         return None
 
     def run_sim_damage(self,roi,force_roi,applied_velocity,
-                    tensile_strength,degradation_rate,
+                    degradation_rate,
                     dt=None,num_steps=3000,
-                    at_every=20):
+                    at_every=20,**kwargs):
         """
         Runs dynamic LPM simulation using applied velocities at interfaces. 
 
         applied_velocity : float of 1x2 array
             Applied velocity at the regions specified by force_roi. If float, makes vx=vy=v0 
-        
-        tensile_strength : float
-            Maximum load the material can bear before failure
         """        
         num_steps = int((num_steps/at_every)*at_every)
         particle_roi = roi
         outside = np.where(particle_roi == False)[0]
         num_particles = self.positions.shape[0]
-        applied_velocity = np.array(applied_velocity)
+        applied_velocity = cp.asarray(applied_velocity)
         dt=0.6*self.dtc if dt is None else dt 
         self.dt = dt #save it for further post-process
-        #Force_ext = Force #np.zeros(positions.shape)
-        Force_ext = np.zeros(self.positions.shape) # zero because external force applied here using applied velocities
-        #velocities = (dt/self.mass) * Force_ext
-        velocities = np.zeros(self.positions.shape) 
-        velocities = applied_velocity * force_roi 
+        self.positions = cp.asarray(self.positions)
+        self.init_positions = self.init_positions_cp
+        #Force_ext = cp.asarray(force_roi) #! comment if doing velocity study
+        Force_ext = cp.zeros(self.positions.shape) #! comment if doing force study
+        #velocities = (dt/self.mass) * Force_ext #! comment if doing velocity study
+        velocities = cp.zeros(self.positions.shape) #! comment if doing force study
+        velocities = applied_velocity * cp.asarray(force_roi ) #! comment if doing force study
 
         num_T = int((num_steps - at_every)/at_every)+1 # number of time slices to be saved
-        
+        force_measurement = []
+        lode_angle_hist = []
+        time_idx = []
         iter_array = np.zeros(num_T)
-        sigma_history = np.zeros([num_T,6,num_particles])
-        position_history = np.zeros([num_T,num_particles,2])
-        Damage_history = np.zeros([num_T,num_particles])
-        Sigma_rnk_history = np.zeros([num_T,num_particles])
-        Force_history = np.zeros([num_T,num_particles,2])
+        sigma_history = cp.zeros([num_T,6,num_particles])
+        #epsilon_history = cp.zeros([num_T,3,num_particles])
+        position_history = cp.zeros([num_T,num_particles,2])
+        Damage_history = cp.zeros([num_T,num_particles])
+        sigma_yield_history = cp.zeros([num_T,num_particles])
+        Force_history = cp.zeros([num_T,num_particles,2])
+        Displacement_history = cp.zeros([num_T,num_particles,2])
         self.init_exclusions = self.exclusions
-        max_stresses = cp.ones(num_particles) * tensile_strength #r value for each particle. Initial value: sigma_t (tensile strength)
+        max_stresses = cp.ones(num_particles) * self.Material.tensile_strength #r value for each particle. Initial value: sigma_t (tensile strength)
         #Edensity = []
         KinE = []
         #iter_array = [] #to record the steps where quantities are recorded
-        KinE0 = self.Global_Energies(velocities)
+        #KinE0 = self.Global_Energies(velocities)
         damage_i = cp.zeros(num_particles)
         ind_ = -1
         for i in range(1, num_steps+1):        
-            damaged_particles = cp.where(damage_i>0.99)[0]#,True,False)
-            self.exclusions = np.append(self.exclusions,damaged_particles)
+            damaged_particles = cp.where(damage_i>0.995)[0]#,True,False)
+            #self.exclusions = cp.append(self.exclusions,damaged_particles)
+            self.exclusions = np.unique(np.concatenate((self.exclusions, asnumpy(damaged_particles))))
+            mask_ = ~np.isin(self.pairlist0, self.exclusions)
+            self.mask_cp = cp.asarray(mask_.astype(float))
+            self.inclusions = np.where(np.isin(np.arange(self.init_positions.shape[0]),
+                                   self.exclusions), False, True)
+            self.inclusions_cp = cp.asarray(self.inclusions)
             r0 = self.positions
             v0 = velocities
+            KinE0=self.Global_Energies(v0) # here for prescribed velocity
+            #! comment if doing force study
             v0[force_roi] = applied_velocity if np.isscalar(applied_velocity) else applied_velocity[force_roi] #* force_roi
+            #! ##########################
             v0[outside] = 0 # particles that are outside roi are fixed (vx=vy=0)
             half_pos = r0 + (dt/2)*v0
 
             self.positions = half_pos
 
             Force_i, Forces = self.compute_local_properties_damage(particle_roi,damage_i)
-            velocities = v0 + (dt)*(Force_ext - Force_i)/self.mass
-            self.positions = r0 + (dt/2)*(v0 + velocities)/2
-            KinE.append(self.Global_Energies(velocities))
-            sigma_rnk = self.stress_truncated_rankine()
-            sigma_rnk = sigma_rnk.T.flatten()
+            Force_i_undamaged, Forces_undamaged = self.compute_local_properties(particle_roi,**kwargs) #,damage_i)
+
+            Force_i[self.exclusions] = 0
+            Forces[self.exclusions] = 0
+            velocities = v0 + (dt)*(-kwargs.get('damping_factor',0)*v0  + (Force_ext - Force_i)/self.mass)
+            velocities[force_roi] = applied_velocity if np.isscalar(applied_velocity) else applied_velocity[force_roi] #! comment if doing force study
+            velocities[outside] = 0
+            self.positions = half_pos + (dt/2) * velocities
+            KinE_n = self.Global_Energies(velocities)
+            KinE.append(KinE_n)
+            #sigma_yield = self.stress_truncated_rankine(Forces = Forces_undamaged,**kwargs) # added forces to skip constitutive relations stress
+            #sigma_yield = self.stress_drucker_prager(Forces = Forces_undamaged,**kwargs) # added forces to skip constitutive relations stress
+            sigma_yield = self.stress_ottosen(Forces = Forces_undamaged,**kwargs)
+            
+            sigma_yield = sigma_yield 
             #sigma_rnk[outside]=0
-            sigma_rnk[self.exclusions] = 0
-            damage_i, sigma_max_i = self.damage_evolution(sigma_rnk, max_stresses, tensile_strength, degradation_rate)
+            sigma_yield[self.exclusions] = 0
+            damage_i, sigma_max_i = self.damage_evolution(sigma_yield, max_stresses, self.Material.tensile_strength, degradation_rate)
             max_stresses = cp.max(cp.stack([sigma_max_i,max_stresses]),axis=0)
+            self.max_stresses = max_stresses
+            if (KinE_n<=KinE0):
+                velocities = v0*0 #! comment if doing force study
+                velocities[force_roi] = applied_velocity if np.isscalar(applied_velocity) else applied_velocity[force_roi] #! comment if doing force study
+                force_measurement.append(Force_i)
+                time_idx.append(i)
+                print ('current KE=',KinE_n)
+                print ('Ratio=',KinE_n/cp.max(cp.asarray(KinE)))
+                print ('velocities set to zero at t=',i)
             if np.logical_and((np.mod(i,at_every)==0),(damage_i > 0.99).any()):
                 print("Damage initiated at time={n}".format(n=i))
             if (np.mod(i,at_every)==0):
+                print ('Current volume fraction={e}'.format(e=1 - self.exclusions.shape[0]/self.n_particles))
+
                 #Force_hist.append(Force_i)
                 #Force_hist.append(Force_i)
                 
                 ###pos_hist.append(self.positions)
                 ind_ = ind_ + 1
                 position_history[int(ind_)] = self.positions
-                
-                stresses = cp.asarray(self.get_stresses(Forces))
+                #stresses = self.get_stresses(Forces)
 
                 ###sigma_hist.append(stresses)
-                sigma_history[int(ind_)] = asnumpy(stresses)
-
+                sigma_history[int(ind_)] = self.stresses * (1 - damage_i) #asnumpy(stresses)
+                #epsilon_history[int(ind_)] = cp.asarray(self.get_strains() )
                 ###iter_array.append(i)
 
                 iter_array[int(ind_)] = i
                 ###Damage.append(damage_i)
-                Damage_history[int(ind_)] = asnumpy(damage_i)
+                Damage_history[int(ind_)] = damage_i #asnumpy(damage_i)
                 ###sigma_rnk_hist.append(sigma_rnk)
-                Sigma_rnk_history[int(ind_)] = asnumpy(sigma_rnk)
-                Force_history[int(ind_)] = asnumpy(Force_i)
+                U,V = self.get_displacements()
+                Displacement_history[int(ind_)] = cp.c_[U,V]
+                sigma_yield_history[int(ind_)] = sigma_yield * (1- damage_i) #asnumpy(sigma_rnk)
+                Force_history[int(ind_)] = Force_i  #asnumpy(Force_i)
                 #Edensity.append(self.EnergyDensity(Forces))
+                lode_angle_hist.append(self.lode_angles)
                 print ('current time step={n}'.format(n=i))
 
         self.iter_array = iter_array
         self.sigma_history = sigma_history
         self.position_history = position_history
         self.Damage_history = Damage_history
-        self.Sigma_rnk_history = Sigma_rnk_history
+        self.sigma_yield_history = sigma_yield_history
         self.Force_history = Force_history
-        self.KE_history = np.asarray(KinE)
+        self.KE_history = asnumpy(cp.asarray(KinE))
+        self.Displacement_history = asnumpy(Displacement_history)
+        #self.epsilon_history = epsilon_history
+        self.time_idx = time_idx
+        self.lode_angle_history = asnumpy(cp.asarray(lode_angle_hist))
+        self.force_measurement = force_measurement
         return None
 
     def boundary_condition(self,edge,value=None,remove_exclusions=True):
@@ -811,14 +995,14 @@ class LatticeParticleMethod:
         """
         Arr = np.full(self.positions.shape[0],False)
         if (edge=='right'):
-            mask = np.where((self.positions[:,0]==np.max(self.positions[:,0])))[0]
+            mask = self.right_edge #np.where((self.positions[:,0]==np.max(self.positions[:,0])))[0]
         elif (edge=='left'):
-            mask = np.where((self.positions[:,0]==0 ) )[0]
+            mask = self.left_edge #np.where((self.positions[:,0]==0 ) )[0]
         elif (edge=='top'):
             #mask = np.where( np.logical_and( (pos[:,1]==0), (pos[:,0]==np.max(pos[:,0]))  ) )[0]
-            mask = np.where(self.positions[:,1]==np.max(self.positions[:,1]))[0]
+            mask = self.top_edge #np.where(self.positions[:,1]==np.max(self.positions[:,1]))[0]
         elif (edge=='bottom'):
-            mask = np.where(self.positions[:,1]==0)[0]
+            mask = self.bottom_edge #np.where(self.positions[:,1]==0)[0]
         Arr[mask] = True
         if (remove_exclusions==True):
             Arr[self.exclusions] = False #Remove spuriously included regions, if any
@@ -863,7 +1047,7 @@ class LatticeParticleMethod:
         sigma_eff_xy = self.Czz * eps_xy
         return sigma_eff_xx,sigma_eff_xy,sigma_eff_yy
     
-    def stress_truncated_rankine(self):
+    def stress_truncated_rankine(self,Forces=None,**kwargs):
         """
         Get stresses in the system according to truncated Rankine model (https://doi.org/10.1016/j.engfracmech.2024.110203).
         Uses principal values of stresses obtained from the constitutive relations and computes their Macaulay sum.
@@ -874,17 +1058,23 @@ class LatticeParticleMethod:
             Sigma rankine for each particle. Since `self.get_strains()` reshapes the data, the sigma here is [Nx x Ny] as opposed to usual [(N_x N_y) x 1].
             To put it back in same ordering (to remove exclusions), use `.T.flatten()` 
         """
-        
-        sigma_eff_xx, sigma_eff_xy, sigma_eff_yy = self.stress_from_constitutive_relations()
-        sigma1_eff=(sigma_eff_xx+sigma_eff_yy)/2 + cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
-        sigma2_eff=(sigma_eff_xx+sigma_eff_yy)/2 - cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
-        #sigma_rankine_t = 0.5 *(sigma1_eff + np.abs(sigma1_eff)) + 0.5 * (sigma2_eff + np.abs(sigma2_eff))
-        sigma_rankine_t = cp.sqrt((cp.where(sigma1_eff>0,sigma1_eff,0))**2 + (cp.where(sigma2_eff > 0, sigma2_eff, 0))**2)
+        if (Forces is None):
+            sigma_eff_xx, sigma_eff_xy, sigma_eff_yy = self.stress_from_constitutive_relations()
+            sigma1_eff=(sigma_eff_xx+sigma_eff_yy)/2 + cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
+            sigma2_eff=(sigma_eff_xx+sigma_eff_yy)/2 - cp.sqrt( cp.power((sigma_eff_xx-sigma_eff_yy),2)/4 + cp.power(sigma_eff_xy,2) )
+        else:
+            self.stresses = cp.asarray(self.get_stresses(Forces))
+            sigma_eff_xx,sigma_eff_xy,sigma_eff_yy,von_mises,sigma1_eff,sigma2_eff = self.stresses
+
+        sigma_rankine_t = 0.5 *(sigma1_eff + cp.abs(sigma1_eff)) + 0.5 * (sigma2_eff + cp.abs(sigma2_eff))
+        sigma_rankine_t = gaussian_filter(sigma_rankine_t,sigma=kwargs.get('sigma',1), truncate=kwargs.get('truncate',3)) #,mode=mode)
+        #sigma_rankine_t = cp.sqrt((cp.where(sigma1_eff>0,sigma1_eff,0))**2 + (cp.where(sigma2_eff > 0, sigma2_eff, 0))**2)
         #sigma_rankine_t = self.mac_func(sigma1_eff) + self.mac_func(sigma2_eff)
         return sigma_rankine_t
         #sigma_xx,sigma_xy,sigma_yy,sigma_vm,sigma_p1,sigma_p2 = self.get_stresses()
         #sigma_ = self.mac_func(sigma_p1) + self.mac_func(sigma_p2)
         #return sigma_
+
     
     def damage_evolution(self,current_stresses, max_stresses, tensile_strength, degradation_rate):
         """
@@ -920,7 +1110,7 @@ class LatticeParticleMethod:
         return d_array, sigma_max
 
     def mac_func(self,arr):
-        return 0.5*arr + 0.5*np.abs(arr)
+        return 0.5*arr + 0.5*cp.abs(arr)
 
     def animate_fields(self, X, filename='animated_field',fps=10, dpi=150,vmin=None,vmax=None,**kwargs):
         """
@@ -947,7 +1137,7 @@ class LatticeParticleMethod:
         nframes = X.shape[0]
         fig, ax = plt.subplots()
         #cmap = kwargs.get('cmap','jet')
-        im = ax.imshow((self.reshape_fields(X[0])).T, origin='lower' , vmax = vmax,vmin=vmin,animated=True,interpolation='nearest',**kwargs)
+        im = ax.imshow((self.reshape_fields(X[0])).T, origin='lower' , vmax = vmax,vmin=vmin,animated=True,interpolation='None',**kwargs)
         cbar = fig.colorbar(im,ax=ax)
         def update(frame):
             X_ = (self.reshape_fields(X[frame]))#, origin='lower' ,cmap='jet', animated=True)
@@ -1041,10 +1231,10 @@ class LatticeParticleMethod:
                                 num_steps=total_time,at_every=at_every, dt = courant_number*system.dtc,tolerance=tol, 
                                 affine_matrix=affine_matrix,damping_factor=0)
         Eps = system.get_strains()
-        epsxx,epsxy,epsyy = np.mean(Eps[0]), np.mean(Eps[1]), np.mean(Eps[2])
+        epsxx,epsxy,epsyy = np.mean(Eps[0][system.inclusions]), np.mean(Eps[1][system.inclusions]), np.mean(Eps[2][system.inclusions])
         Sigma = system.get_stresses(system.Force_pairs)
         sigmaxx,sigmaxy,sigmayy = np.mean(Sigma[0]),np.mean(Sigma[1]),np.mean(Sigma[2])
-        xloading_results = cp.asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
+        xloading_results = asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
         stress_concx = cp.max(Sigma[3])/cp.mean(Sigma[3][system.inclusions])
         if (save_states==True):
             xload_state = system
@@ -1059,10 +1249,10 @@ class LatticeParticleMethod:
                                 num_steps=total_time,at_every=at_every, dt = courant_number*system.dtc,tolerance=tol, 
                                 affine_matrix=affine_matrix,damping_factor=0)
         Eps = system.get_strains()
-        epsxx,epsxy,epsyy = np.mean(Eps[0]), np.mean(Eps[1]), np.mean(Eps[2])
+        epsxx,epsxy,epsyy = np.mean(Eps[0][system.inclusions]), np.mean(Eps[1][system.inclusions]), np.mean(Eps[2][system.inclusions])
         Sigma = system.get_stresses(system.Force_pairs)
         sigmaxx,sigmaxy,sigmayy = np.mean(Sigma[0]),np.mean(Sigma[1]),np.mean(Sigma[2])
-        yloading_results = cp.asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
+        yloading_results = asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
         stress_concy = cp.max(Sigma[3])/cp.mean(Sigma[3][system.inclusions])
         if (save_states==True):
             yload_state = system
@@ -1072,15 +1262,17 @@ class LatticeParticleMethod:
         # 3) xy loading / shear
         print ('Simulating shear loading')
         system = LatticeParticleMethod(Phase=phase,Material=Mat,thickness=thickness,is_periodic=True)
-        affine_matrix = np.array([[1, strain_rate],[1*strain_rate,1]])
+#        affine_matrix = np.array([[1, strain_rate],[1*strain_rate,1]])
+        affine_matrix = np.array([[1, strain_rate],[0*strain_rate,1]])
+
         results = system.run_sim(particle_roi, cp.asarray(Force_roi ), is_velocity=True,
                                 num_steps=total_time,at_every=at_every, dt = courant_number*system.dtc,tolerance=tol, 
                                 affine_matrix=affine_matrix,damping_factor=0)
         Eps = system.get_strains()
-        epsxx,epsxy,epsyy = np.mean(Eps[0]), np.mean(Eps[1]), np.mean(Eps[2])
+        epsxx,epsxy,epsyy = np.mean(Eps[0][system.inclusions]), np.mean(Eps[1][system.inclusions]), np.mean(Eps[2][system.inclusions])
         Sigma = system.get_stresses(system.Force_pairs)
         sigmaxx,sigmaxy,sigmayy = np.mean(Sigma[0]),np.mean(Sigma[1]),np.mean(Sigma[2])
-        xyloading_results = cp.asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
+        xyloading_results = asnumpy(cp.asarray([epsxx,1*epsxy,epsyy,sigmaxx,sigmaxy,sigmayy]))
         stress_concxy = cp.max(Sigma[3])/cp.mean(Sigma[3][system.inclusions])
         if (save_states==True):
             xyload_state = system
@@ -1088,11 +1280,13 @@ class LatticeParticleMethod:
             xyload_state = None
 
         Eps1,Sigma1,Eps2,Sigma2,Eps3,Sigma3 = xloading_results[:3], xloading_results[3:], yloading_results[:3], yloading_results[3:], xyloading_results[:3], xyloading_results[3:] 
-        Eps_h = np.array([[Eps1[0],Eps2[0],Eps3[0]],[Eps1[2],Eps2[2],Eps3[2]], [Eps1[1],Eps2[1],Eps3[1]] ] )
+        Eps_h = 2*np.array([[Eps1[0],Eps2[0],Eps3[0]],[Eps1[2],Eps2[2],Eps3[2]], [Eps1[1],Eps2[1],Eps3[1]] ] ) # factor of 2 from particle->bonds conversion 
+        Eps_h[2] = Eps_h[2]*2 # converting to engineering strain
         Sigma_h = np.array([[Sigma1[0],Sigma2[0],Sigma3[0]],[Sigma1[2],Sigma2[2],Sigma3[2]], [Sigma1[1],Sigma2[1],Sigma3[1]] ] )
+        Eps_h = np.array([[ 4*strain_rate, 0,  2*strain_rate],[0,  4*strain_rate, 0],[ 0, 0,  2*strain_rate]]) # factor of 4 to account for particle-bond disparity. 
         Stiffness_matrix_eff = (Sigma_h@np.linalg.inv(Eps_h)) 
         hm_results = homogenization_results(effective_stiffness_voigt = Stiffness_matrix_eff, 
-                                            eps_h = Eps_h, sigma_h = Sigma_h, stress_conc = cp.asnumpy(cp.array([stress_concx,stress_concy, stress_concxy])),
+                                            eps_h = Eps_h, sigma_h = Sigma_h, stress_conc = asnumpy(cp.array([stress_concx,stress_concy, stress_concxy])),
                                             xload_state=xload_state, yload_state = yload_state, xyload_state = xyload_state)
         return hm_results
     
@@ -1184,19 +1378,23 @@ class homogenization_results:
         self.poisson_eff = np.array([np.sqrt(v_R*v_V), 0.5*(v_R+v_V)])
         self.Anisotropy = np.sqrt( (K_V/K_R - 1)**2 + 2*(mu_V/mu_R - 1)**2 )
         return None
-
-    def directional_properties(self,theta):
-        m = np.array([np.cos(theta), np.sin(theta)])
-        m_perp = np.array([-np.sin(theta), np.cos(theta)])
-        m_m = np.outer(m, m)
-        mp_mp = np.outer(m_perp,m_perp)
-        denom = np.einsum('ij,ijkl,kl->',m_m,self.compliance_matrix,m_m)
-        num = np.einsum('ij,ijkl,kl->',mp_mp,self.compliance_matrix,m_m)
-        youngs_directional, poisson_direction = 1/denom, - num/denom
-        return np.array([youngs_directional, poisson_direction])
     
     def get_angular_properties(self,theta=None):
         if theta is None:
             theta = np.linspace(0, 2*np.pi, 361)
         props = np.array([self.directional_properties(t) for t in theta]) # ordered as (Y,nu)
         return np.c_[theta,props] # ordered as (theta, Y, nu)
+
+    def directional_properties(self, theta):
+        n = np.array([np.cos(theta), np.sin(theta)])
+        t = np.array([-np.sin(theta), np.cos(theta)])
+
+        p = np.array([n[0]**2, n[1]**2, 1*n[0]*n[1]])
+        q = np.array([t[0]**2, t[1]**2, 1*t[0]*t[1]])
+
+        denom = p @ self.effective_compliance_voigt @ p
+        num = q @ self.effective_compliance_voigt @ p
+
+        E = 1.0 / denom
+        nu = -num / denom
+        return np.array([E, nu])
