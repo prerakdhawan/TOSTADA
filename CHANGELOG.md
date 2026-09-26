@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.0 - 2026-09-26
+- Updated pip installation for GPU vs CPU builds.
+
 ## 0.3.3 - 2026-02-13
 - Added periodic simulations and homogenization options for mechanical module.
 

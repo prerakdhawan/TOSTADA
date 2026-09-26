@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]                                                                       
 name = "tostada"                                                                
-version = "0.3.3"                                                               
+version = "0.4.0"                                                               
 description = "TOolkit for Spatially TAilored Disordered Arrangements"          
 readme = "README.md"                                                            
 requires-python = ">=3.10"                                                      
@@ -24,7 +24,7 @@ classifiers = [
 # ------------------------ CORE dependencies: `pip install tostada` (CPU) ------------
 
 dependencies = [
-    "numpy<2",          
+    "numpy>1.24",          
     "scipy>=1.10",             
     "matplotlib>=3.7",         
     "jax>=0.8,<0.12",          
@@ -38,11 +38,6 @@ dependencies = [
     "h5py>=3.10",              
     "pillow>=10.0",            
     "tqdm>=4.66",
-    "jupyterlab>=4.0",
-    "ipywidgets>=8.0,<9",
-    "pytest>=8.0",
-    "build>=1.2",
-    "twine>=5.0" 
 ]                              
 
 # ------------------------ OPTIONAL dependency groups : `pip install tostada[gpu]` ----------------------------------------------
@@ -51,14 +46,21 @@ dependencies = [
 
 gpu = [                        
     "jax[cuda12]>=0.8,<0.12",  
-    "cupy-cuda12x>=13.0",      
-] 
+    "cupy-cuda12x>=13.0",      ] 
+
+dev = [ 
+    "jupyterlab>=4.0",  
+    "ipywidgets>=8.0,<9",
+    "pytest>=8.0",       
+    "build>=1.2",        
+    "twine>=5.0",        
+]
 
 viz = [ 
     "pyvista>=0.43", 
 ]
  
-all = ["tostada[gpu,viz]"]  
+all = ["tostada[gpu,viz,dev]"]  
   
 [project.urls]
 Homepage = "https://gitlab.informatik.uni-halle.de/mikromd/tostada" 

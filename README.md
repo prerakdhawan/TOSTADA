@@ -12,7 +12,7 @@ This repository brings together multiple computational strategies to explore the
 
 ### 💻 Generation (Inverse Design)
 Generate disordered phase or point distributions with **prescribed spatial statistics** using:
-  - Reciprocal-space optimization 
+  - Reciprocal-space optimization
   - Gaussian random fields
   - Phase field method with customized potential functions.
 
@@ -25,29 +25,38 @@ Generate disordered phase or point distributions with **prescribed spatial stati
 ### 📊 Analysis
 - **Spatial Statistics Tools**: 
   - Pair correlation functions
-  - Structure factors 
-  - Angular averages
+  - Structure factor and Spectral density 
+  - Morphological structure metrics
   - Hyperuniformity index
-
+  
 ## Installation
 
-The package and its necessary dependencies can be downloaded by typing the following command in the terminal:
+### Standard installation
 
-`git clone https://gitlab.informatik.uni-halle.de/mikromd/tostada.git`
+Until the package is published on PyPI, install straight from GitHub
+```bash
+pip install "git+https://gitlab.informatik.uni-halle.de/mikromd/tostada.git"
+pip install "tostada[gpu] @ git+https://gitlab.informatik.uni-halle.de/mikromd/tostada.git" # NVIDIA GPU (CUDA 12)
+```
+`device_info()` should report a `CudaDevice` on a GPU installation and a `CpuDevice` otherwise. 
 
-For convenient installation, we recommend a conda package manager. To avoid a bulky Anaconda download, it is sufficient to download Miniconda. If not already downloaded on your system, follow the instructions given [**here**](https://www.anaconda.com/docs/getting-started/miniconda/main). Then, `cd` to the directory containing the source files and type:
+That is all you need for inverse design, spatial statistics, phase-field dynamics and the lattice-particle mechanics solver on CPU/GPU.
 
-`conda env create -f environment.yml` 
+### Installation with MEEP (optical simulations)
 
-and follow subsequent instructions. After successful installation, this will create a new conda environment `tost` visible by typing `conda env list` in the terminal. After activating this environment, install the pip dependencies for JAX support using `pip install   "jax[cuda12]==0.8"   "jaxlib==0.8"   "jaxopt==0.8.5"   -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`. For seamless code development and research with tostada, it is advisable to now type in the terminal:
+If you wish to use `tostada` for optical simulations of disordered media, tostada offers a plugin to MEEP. However, MEEP is a C++ package whose MPI build (for parallelized simulations) is currently distributed through **conda-forge, not PyPI**. If conda isn't already installed, use [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main) for a light version. The full installation can then be done through:
 
-`conda-develop /home/yourname/folder/tostada/src`
+```bash
+git clone https://gitlab.informatik.uni-halle.de/mikromd/tostada.git
 
-Replace `/home/yourname/folder` with whichever folder containing `tostada` source files. With this, one is fully equipped to import `tostada` anywhere from the system.
+cd tostada
 
-For quick learning of algorithms, arguments and function implementations, it is recommended to install VS Studio with _Pylance_ and other necessary code development extensions.
+conda env create -f environment.yml        # CPU
+# OR
+conda env create -f environment_gpu.yml    # NVIDIA GPU
 
-The same steps provided above can be used to install and run `tostada` remotely on a server (with or without GPU). 
+conda activate tostada                     # or tostada-gpu
+```
 
 ## 📌 Examples
 
@@ -62,6 +71,16 @@ Explore example notebooks and scripts in the `examples/` folder to get started w
 - Extracting color information from the optical response of a disordered media
 
 and many more...
+
+If you do not have [Jupyterlab](https://jupyter.org/) already in your environment and wish to run the examples notebooks, install the development version 
+```bash
+pip install "tostada[dev] @ git+https://gitlab.informatik.uni-halle.de/mikromd/tostada.git" 
+```
+If you have already downloaded a CPU/GPU build, you can simply update using 
+```bash
+cd tostada
+pip install -e .[dev]
+```
 
 ## 📚 Citation and Acknowledgements
 
