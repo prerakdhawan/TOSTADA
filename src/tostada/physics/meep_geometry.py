@@ -2,7 +2,6 @@ import numpy as np
 import meep as mp
 from tostada.PointDistribution import PointDistribution
 from tostada.PhaseDistribution import PhaseDistribution
-from tostada.util.materials import Material
 
 class Meep_geometry:
     """

@@ -3,7 +3,6 @@ import scipy.sparse as sp
 from scipy.spatial import cKDTree
 import matplotlib.pyplot as plt
 #from scipy.ndimage import gaussian_filter
-from cupyx.scipy.ndimage import gaussian_filter
 import pickle
 import os
 """
@@ -24,7 +23,6 @@ USE_GPU = os.getenv("USE_GPU", "1") == "1"
 if USE_GPU:
     try:
         import cupy as cp
-        cp.asarray([0])
         from cupyx.scipy.ndimage import gaussian_filter
         #print("GPU detected. Using CUDA")
         import warnings; warnings.warn("GPU detected. Using CUDA", stacklevel=2)

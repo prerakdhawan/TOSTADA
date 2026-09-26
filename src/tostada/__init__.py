@@ -8,7 +8,13 @@ This package provides:
 '''  
 
 # package version
-__version__ = "0.3.2"
+from importlib.metadata import version as _pkg_version  
+from importlib.metadata import PackageNotFoundError  
+try: 
+    __version__ = _pkg_version("tostada")
+except PackageNotFoundError:  
+    __version__ = "0.0.0+unknown" 
+
 import os
 import shutil
 import subprocess
@@ -37,10 +43,9 @@ from .pointprocess import Pointprocess #noqa : F401
 from .util.materials import Material #noqa : F401
 from .plot_util import Visualize #noqa : F401
 from .Optimization import Optimization # noqa : F401
-from .physics.meep_geometry import Meep_geometry # noqa : F401
 from .util.Utility import Spectrum # noqa : F401
 from .util.Utility import read_file # noqa : F401
-# TODO: define what is available with `from tostada import *`
-import jax
-print("Using JAX devices:", jax.devices())
-
+def device_info():                                              
+    """Report the JAX devices in use. Replaces the old print-on-import."""  # 
+    import jax                                                  
+    return jax.devices()  

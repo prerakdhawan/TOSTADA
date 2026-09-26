@@ -5,24 +5,24 @@
 # TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)
 
 _TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)_ is a GPU-enabled python package for **creating**, **simulating** and **analyzing** spatially disordered distributions with prescribed correlations in 2D/3D.
-The key idea behind `tostada` is to translate inverse-design and statistics tools specifically used in the context of disordered media to open-source physics-based solvers for simulating their optical or mechanical response in an inter-operable manner.
-This repository brings together multiple computational strategies to explore the physics and geometry of complex disordered systems. Whether it is simulating wave propagation through disordered lattices, characterizing porous microstructure statistics, or using optimization tools to generate materials with tailored correlation functions — this toolkit has you covered.
+The key idea behind `tostada` is to translate inverse-design and statistics tools specifically used in the context of disordered media to open-source physics-based solvers in an inter-operable manner.
+This repository brings together multiple computational strategies to explore the physics and geometry of complex disordered systems. Whether it is simulating wave propagation through disordered media, characterizing porous microstructure statistics, or using optimization tools to generate materials with tailored correlation functions — this toolkit has you covered.
 
 ## 🔧 Features
 
-### :computer: Generation (Inverse Design)
+### 💻 Generation (Inverse Design)
 Generate disordered phase or point distributions with **prescribed spatial statistics** using:
   - Reciprocal-space optimization 
   - Gaussian random fields
-  - Custom loss functions targeting structure factor, real-space correlation functions, energy minimization strategies.
+  - Phase field method with customized potential functions.
 
-### :atom_symbol: Physics simulation 
+### ⚛️ Physics simulation 
 
-- **MEEP Plugins**: Export and simulate wave dynamics in disordered media using MIT's Finite-Difference Time-Domain (FDTD) Maxwell solver, _[MEEP](https://meep.readthedocs.io/)_ with custom plugins for particle-type distributions (for example, distribution of nanodisks) or phase-type distributions (for example, porous microstructures).
-- **Lattice Particle Method**: GPU-enabled in-house solver to model mechanical response and fracture mechanics in two-phase media for linear regime.
+- **MEEP Plugins**: Export and simulate wave dynamics in disordered media using MIT's Finite-Difference Time-Domain (FDTD) Maxwell solver, _[MEEP](https://meep.readthedocs.io/)_ with direct plugins for particle-type distributions (for example, distribution of nanodisks) or phase-type distributions (for example, porous microstructures).
+- **Lattice Particle Method**: GPU-enabled in-house solver to model mechanical response, homogenization and fracture mechanics in two-phase media for linear regime.
 - **Phase field method**: GPU-enabled phase field method for creating different morphologies arriving from phase field crystal, Swift-Hohenberg, Cahn-Hilliard equation etc.
 
-### :bar_chart: Analysis
+### 📊 Analysis
 - **Spatial Statistics Tools**: 
   - Pair correlation functions
   - Structure factors 
@@ -63,7 +63,7 @@ Explore example notebooks and scripts in the `examples/` folder to get started w
 
 and many more...
 
-## :books: Citation and Acknowledgements
+## 📚 Citation and Acknowledgements
 
 If you use this toolkit in your research, please consider citing this repository link and in future the corresponding publication (coming soon!). 
 

@@ -1,3 +1,80 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]                                                                       
+name = "tostada"                                                                
+version = "0.3.3"                                                               
+description = "TOolkit for Spatially TAilored Disordered Arrangements"          
+readme = "README.md"                                                            
+requires-python = ">=3.10"                                                      
+license = "Apache-2.0"                                                          
+authors = [                                                                     
+    {name = "Prerak Dhawan", email = "prerak.dhawan@physik.uni-halle.de"},      
+]                                                                               
+keywords = [                                                                    
+    "disordered-media", "hyperuniformity", "inverse-design",                    
+    "photonics", "mechanics", "phase-field", "jax"         
+]                                                                               
+classifiers = [                                                                 
+    "Intended Audience :: Science/Research",                                    
+    "Programming Language :: Python :: 3",                                      
+    "Topic :: Scientific/Engineering :: Physics",                                                                      
+]                                                                                
+# ------------------------ CORE dependencies: `pip install tostada` (CPU) ------------
+
+dependencies = [
+    "numpy<2",          
+    "scipy>=1.10",             
+    "matplotlib>=3.7",         
+    "jax>=0.8,<0.12",          
+    "jaxopt>=0.8.5",           
+    "autograd>=1.6",           
+    "scikit-image>=0.22",      
+    "scikit-fem>=10.0",        
+    "opencv-python>=4.8,<5",   
+    "tifffile>=2024.1.30",     
+    "imagecodecs>=2024.1.1",   
+    "h5py>=3.10",              
+    "pillow>=10.0",            
+    "tqdm>=4.66",
+    "jupyterlab>=4.0",
+    "ipywidgets>=8.0,<9",
+    "pytest>=8.0",
+    "build>=1.2",
+    "twine>=5.0" 
+]                              
+
+# ------------------------ OPTIONAL dependency groups : `pip install tostada[gpu]` ----------------------------------------------
+
+[project.optional-dependencies] 
+
+gpu = [                        
+    "jax[cuda12]>=0.8,<0.12",  
+    "cupy-cuda12x>=13.0",      
+] 
+
+viz = [ 
+    "pyvista>=0.43", 
+]
+ 
+all = ["tostada[gpu,viz]"]  
+  
+[project.urls]
+Homepage = "https://gitlab.informatik.uni-halle.de/mikromd/tostada" 
+Repository = "https://gitlab.informatik.uni-halle.de/mikromd/tostada" 
+Issues = "https://gitlab.informatik.uni-halle.de/mikromd/tostada/issues"
+
+[tool.setuptools]                                                              
+include-package-data = true
+ 
+[tool.setuptools.packages.find]
+where = ["src"]
+ 
+[tool.setuptools.package-data] 
+
+tostada = ["util/*.txt","util/*.csv","images/*.png"]
+ 
+[tool.setuptools.exclude-package-data]
+
+tostada = ["environment.yml",".gitignore"]
