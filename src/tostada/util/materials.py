@@ -1,12 +1,23 @@
 import numpy as np
-import meep as mp
+#import meep as mp
 import os
 import inspect
 
 current_file = inspect.getfile(inspect.currentframe())
 this_dir = os.path.dirname(os.path.abspath(current_file))
-
-##################################################### STILL IN DEVELOPMENT ###############################################
+def _meep(): 
+    """Imports meep only on demand."""
+    try:                                                              
+        import meep as mp                                             
+        return mp                                                     
+    except ImportError as exc:                                        
+        raise ImportError(                                            
+            "This feature requires MEEP, which is not currently installed.\n"    
+            "Install it with conda through:\n" 
+            '    conda install -c conda-forge "pymeep=*=mpi_mpich_*"\n'
+        ) from exc  
+    
+#!#################################################### STILL IN DEVELOPMENT ###############################################
 class Material: 
     """
     Materials library of commonly used materials in optical and mechanical simulations. 
@@ -53,13 +64,21 @@ class Material:
         self.density = density
         self.tensile_strength = tensile_strength
         self.eps_inf = self.refractive_index**2 # epsilon in the infinite frequency limit
-        self.meep_medium = self.Meep_medium() #self.meep_dispersion() if self.optical_dispersions is not None else None
+        #self.meep_medium = self.Meep_medium() #self.meep_dispersion() if self.optical_dispersions is not None else None
+        self._meep_medium_cache = None
 
-
+    @property                                                          
+    def meep_medium(self):                                             
+        """meep.Medium built on first access."""    
+        if self._meep_medium_cache is None:                            
+            self._meep_medium_cache = self.Meep_medium()               
+        return self._meep_medium_cache  
+    
     def Meep_medium(self):
         """
         Create a `meep.Medium` object with or without dispersion.
         """
+        mp = _meep()
         if (self.optical_dispersions is None):
             return mp.Medium(index=self.refractive_index)
         else:
@@ -80,6 +99,7 @@ class Material:
             If any frequency is zero, uses Drude Dispersion model instead. To get a wavelength-dependent dispersion from this, use `self.create_dispersion()`
 
         """
+        mp = _meep()
         num_lorentzians = self.optical_dispersions.shape[0]
         E_susceptibilities = []
         for n in range(num_lorentzians):
@@ -103,7 +123,7 @@ class Material:
                     )
                 )
 
-        meep_material = mp.Medium(epsilon=self.eps_inf, E_susceptibilities=E_susceptibilities)
+        meep_material = mp.Medium(epsilon=self.eps_inf, E_susceptibilities=E_susceptibilities,valid_freq_range=mp.FreqRange(min=1 / 2.5, max=1 / 0.3))
         return meep_material
 
     def create_dispersion(self,wavelength,Meep_medium=None):
@@ -185,11 +205,11 @@ optical_dispersion_melanin = np.array([
 
 AAO = Material(name='Anodized Aluminium Oxide (Al2O3)',
                refractive_index=np.sqrt(1.44), #only for eps_inf. Not to be confused with wavelength-independent refractive index of this media.
-               youngs_modulus=300e9, #Pa
+               youngs_modulus=140e9, #Pa
                optical_measurements=AAO_experiment,
                optical_dispersions=optical_dispersion_AAO,
-               poisson_ratio=0.21,
-               density=3900)
+               poisson_ratio=0.22,
+               density=3000)
 
 Concrete = Material(name='Concrete',
                youngs_modulus=37e9, #Pa
