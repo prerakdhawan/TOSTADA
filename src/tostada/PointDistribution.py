@@ -180,6 +180,34 @@ class PointDistribution:
             print ('HUD class with alpha={a}'.format(a=Hdata[3]))
         return Hdata
     
+    def translational_order_metric(self,kmax=80,q_threshold=None,dkx=None,pad=0,**kwargs):
+        """
+        Normalized translational order metric for the given point distribution. It quantifies "ordered-ness" in a system and vanishes for a poisson point process. For crystalline, poly-crystalline type processes, it diverges in the thermodynamic limit.
+        \\tau = (1/(2pi D)^d)\\int^{\\infty}_0 |S(q)|^2 q^{d-1} dq
+        Here, tau is computed using the angular-averaged structure factor and since the integration is from q \\in [0,\\infty], this metric is dependent on what is the largest `q_max` used for computing S(q) and what is the largest `q_threshold` used in numerical integration.
+
+        Parameters
+        ----------
+        q_max : float
+            Largest q used for computing S(q)
+        q_threshold : float
+            Largest q used for the summation. Default : sqrt(2) * q_max
+        pad : int
+            First M values from S[0,0] that need to be ignored. Default : 0
+        
+        Returns
+        -------
+        tau : float
+            Translational order metric
+
+        """
+        pre_factor = kwargs.get('pre_factor',1)
+        dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
+        Sq = self.ReciprocalSpace(kmax,dkx)
+        q_threshold = np.nanmax(self.Sq_averaged[:,0]) if q_threshold is None else q_threshold
+        tau = stats.tau(self.Sq_averaged,spectrum_type='sq',pad=pad,dim=self.ndim,q_max = q_threshold, pre_factor=pre_factor, rho = self.particledensity)
+        return tau
+    
     def Dmean_from_q(self,factor=np.sqrt(3)/2,kmax=100):
         """
         Calculate mean center-to-center distance of objects from structure factor S(q).

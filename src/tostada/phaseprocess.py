@@ -221,3 +221,17 @@ class Phaseprocess:
         phase_field.solve(additional_mufunc=additional_mufunc, additional_func=additional_func,
                         compute_hyperuniformity=compute_hyperuniformity,target_dmean = self.interpore_distance, *args,**kwargs)
         return phase_field.final_state
+
+    def poisson(self):
+        """
+        Generate a two-phase poisson media in 2D/3D for the given volumefraction.
+
+        Returns
+        -------
+
+        PhaseDistribution object
+        
+        """
+        rng = np.random.default_rng()
+        img = rng.choice([0, 1], size=self.BoxSize, p=[1-self.volumefraction, self.volumefraction])
+        return PhaseDistribution(img,self.resolution)

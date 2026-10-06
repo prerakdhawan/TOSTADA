@@ -6,6 +6,7 @@ from scipy.spatial import cKDTree
 from scipy.ndimage import distance_transform_edt,zoom
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+import scipy.special as sps
 
 def angular_average(data,dkx):
     """
@@ -120,6 +121,57 @@ def fwhm_and_H(array,hud_class = False,pad=2,roi=20,q_ind_max = 4,fwhm=True, smo
     else:
         return HU_data
 
+def tau(array, spectrum_type='Sq', pad=0 , dim = 2, q_max=None,pre_factor=1,**kwargs):
+    """
+    Computes the order metric \tau from an angular-averaged Structure Factor or Spectral Density. Quantifies translational order in the system.
+
+    Parameters
+    ----------
+    array : 2xN array
+        1D spectral density or structure factor. Could be passed from angular_average() or separately. 
+    
+    spectrum_type : str
+        Possible values : 'sq' for structure factor and 'xq' for spectral density
+
+    pad : int
+        M pixels to be ignored from q=0. Default : 0
+    
+    dim : int
+        Dimensions of the original distribution
+
+    q_max : float
+        Maximum q until which the summation must be carried out. Default : taken from Sq/Xq data
+
+    pre_factor : float
+        Normalization for the metric. Default : 1
+    
+    Returns
+    -------
+    tau : float
+        translational order metric tau 
+
+    """    
+    array = array[(np.isnan(array)==False)[:,0]]
+    pad = pad # M pixels away from zeroth peak 
+    q_max_int = np.argmin(np.abs(array[:,0] - q_max)) if q_max is not None else -1
+    q = array[pad:q_max_int,0]
+    X = array[pad:q_max_int,1]
+    if spectrum_type.lower() == "sq":
+        rho = kwargs.get('rho',None)
+        if rho is None:
+            raise ValueError("rho must be provided when spectrum='Sq'.")
+        h_tilde = (X - 1.0) / rho
+        norm_prefactor = 1.0 / ((2.0 * np.pi) ** dim * (1/rho ** (1.0 / dim))**dim )
+    elif spectrum_type.lower() == "xq":
+        h_tilde = X
+        norm_prefactor = 1.0
+    omega_d = 2.0 * np.pi ** (dim / 2.0) / sps.gamma(dim / 2.0)
+    integrand = (np.abs(h_tilde) ** 2) * (q ** (dim - 1))
+    radial_integral = np.trapezoid(integrand, q)
+    q_integral = radial_integral / omega_d
+    tau = pre_factor * norm_prefactor * q_integral
+    return tau
+    
 def dmean_from_qpeak(array,factor=np.sqrt(3)/2):
     """
     Estimate mean inter- pore/object distance `dmean` from characteristic peak in the reciprocal space.

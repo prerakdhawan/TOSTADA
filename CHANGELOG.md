@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.1 - 2026-10-06
+- Added translational order metric for point and phase distributions.
+
 ## 0.4.0 - 2026-09-26
 - Updated pip installation for GPU vs CPU builds.
 
