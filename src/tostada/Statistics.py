@@ -339,12 +339,12 @@ class Morphology:
     def __init__(self, distribution=None,smax=6,**kwargs):
         self.distribution = distribution
         self.smax=smax
-        self.positions, self.polygons,self.psi, self.orientations, self.properties = self.morphology(**kwargs)
+        self.positions, self.polygons,self.psi, self.orientations, self.coordination_numbers, self.properties = self.morphology(**kwargs)
 
     def morphology(self,**kwargs):
         polygons,positions,regionprops = self.distribution.get_morphological_parameters(**kwargs)
-        psi,orientations = self.structure_metrics(polygons)
-        return positions, polygons, psi, orientations, regionprops
+        psi,orientations,n_coord = self.structure_metrics(polygons)
+        return positions, polygons, psi, orientations, n_coord, regionprops
     
     @staticmethod
     def polygon_normals_and_lengths(polygon):
@@ -417,11 +417,11 @@ class Morphology:
             n_coordination = len(poly)
         return psi,thetas,n_coordination
 
-    def misorientation_angles(self, k_neighbors=6, target=np.pi/3):
+    def misorientation_angles(self, k_neighbors=6, target=np.pi/3, is_periodic=False,Lx=None,Ly=None):
         """
         Computes the mean angle of displacement for the given PointDistribution or PhaseDistribution. Can be used to study grain-boundaries in the system.
         """
-        tree = cKDTree(self.positions)
+        tree = cKDTree(self.positions,boxsize=[Lx,Ly]) if is_periodic else cKDTree(self.positions)
         # FIXED: dists first, then idx
         pairlist = tree.query(self.positions, k=k_neighbors+1)[1]
         misorientation_metric = np.zeros(len(self.positions))
@@ -430,6 +430,7 @@ class Morphology:
             neigh_idx = pairlist[i, 1:k_neighbors+1]
             if len(neigh_idx) < 3: continue
             vecs = self.positions[neigh_idx] - self.positions[i]
+            vecs = vecs - np.max([Lx,Ly]) * np.round(vecs / np.max([Lx,Ly])) if is_periodic else vecs
             angles = np.arctan2(vecs[:,1], vecs[:,0])  # angles with respect to x-axis
             order = np.argsort(angles)
             sorted_angles = angles[order]
