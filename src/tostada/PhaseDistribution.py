@@ -1,6 +1,6 @@
 import cv2
 import autograd.numpy as np
-from skimage import filters, measure
+from skimage import filters, measure,draw
 from skimage.color import rgb2gray
 import matplotlib.pyplot as plt
 import tostada.Statistics as stats
@@ -163,27 +163,38 @@ class PhaseDistribution:
         self.Xq_averaged = stats.angular_average(self.Xq,dkx=2*np.pi/self.Lx)
         return self.Xq,self.Xq_averaged
     
-    def get_morphological_parameters(self,detect_pores = True,**kwargs):
+    def get_morphological_parameters(self,**kwargs):
         def isin_box(v):
             return np.logical_and(np.greater(v, coords_min ), np.less(v, coords_max ) )
-        coords_max = np.array([self.BoxSize[0]-1 , self.BoxSize[1]-1  ])
-        coords_min = np.array([0 , 0 ])
+        pad = kwargs.get('pad',0)
+        pad_int = int(pad/self.resolution)
+        is_periodic = kwargs.get('is_periodic',False)
+        coords_max = np.array([int(2*self.BoxSize[0]+pad_int) , int(2*self.BoxSize[1]+pad_int) ]) if is_periodic else np.array([self.BoxSize[0]-1 , self.BoxSize[1]-1  ])
+        coords_min = np.array([int(1*self.BoxSize[0]-pad_int) , int(1*self.BoxSize[1]-pad_int) ]) if is_periodic else np.array([0 , 0 ])
         level = kwargs.get('level',0.05)
-        contours = measure.find_contours(self.image,level)
+        img_ = self.tessellate() if is_periodic else self.image
+        contours = measure.find_contours(img_,level)
         tol = kwargs.get('tolerance',1)
         polygons = []
+        label_img = np.zeros(coords_max-coords_min,dtype=np.int32)
+        x0 = self.Lx[0] - pad if is_periodic else 0
+        y0 = self.Ly[0] - pad if is_periodic else 0
         for i in range(len(contours)):
             poly = contours[i]
             mask = np.bool(np.prod(isin_box(poly),axis=1))
-            #poly = poly[mask]
-            #if (np.logical_and(poly.shape[0]>2, np.bool(np.prod(mask)))):
             if (np.bool(np.prod(mask))):
                 poly = measure.approximate_polygon(poly,tolerance=tol)[:,None]*self.resolution
                 polygons.append(poly)
-        img_ = np.logical_not(self.image) if detect_pores == True else self.image
-        properties = measure.regionprops(measure.label(img_))
-        positions = np.array([p.centroid for p in properties])
+        for i,poly in enumerate(polygons,start=1):
+            poly = np.asarray(poly).squeeze()
+            if poly.shape[0]<3:
+                continue
+            rr,cc = draw.polygon(np.int32(poly[:,0]/self.resolution - x0), np.int32(poly[:,1]/self.resolution - y0),shape=label_img.shape)
+            label_img[rr, cc] = i
+        properties = measure.regionprops(label_img)
+        positions = np.array([p.centroid for p in properties])*self.resolution
         regionprops = properties
+        polygons = [arr - (3/2)*np.array(self.BoxSize)[:self.ndim]*self.resolution for arr in polygons ] if is_periodic else polygons
         return polygons, positions, regionprops
 
     def compute_morphology(self,smax=6,**kwargs):
@@ -197,6 +208,21 @@ class PhaseDistribution:
 
         smax : int
             Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
+
+        kwargs 
+        ------
+
+        pad : float
+            Padding around the image boundaries (in microns) where the objects should be excluded. Default : 0.
+        
+        is_periodic : bool
+            Does the image obey periodic boundaries. Suitable for numerically generated samples with periodic conditions. Default : False.
+
+        level : float
+            grayscale value along which the contours are present. Tune this for detecting the objects/pores. Passed to skimage's marching cubes for computing iso-valued curves.
+        
+        tolerance : float
+            Maximum distance from original points of the polygon (detected from contours) to approximated polygons. Tune this for detecting polygon shapes. 
 
         Returns
         -------
@@ -345,6 +371,8 @@ class PhaseDistribution:
             print ('Hyperuniformity of the structure = {h}'.format(h=Hdata[1]))
         else:
             print ('Hyperuniformity of the structure = {h}'.format(h=Hdata))
+        if (hud_class==True):
+            print ('HUD class with alpha={a}'.format(a=Hdata[3]))
         return Hdata
     
     def Dmean_from_q(self,factor=1,kmax=100):
