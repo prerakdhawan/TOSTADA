@@ -450,3 +450,14 @@ class PhaseDistribution:
         """
         scd = stats.SphericalContactDistribution(self.image,self.resolution)
         return scd
+
+    def remove_plane(self):
+        """
+        Subtracts a linear background from the input phase distribution in 2D/3D. Removes large-scale brightness gradients typical in SEM shading, tilt, charging etc.
+        """
+        grids = np.meshgrid(*[np.linspace(-1, 1, n) for n in self.BoxSize], indexing="ij")
+        A = np.stack([np.ones(self.image.size)] + [g.ravel() for g in grids], axis=1)
+        coef, *_ = np.linalg.lstsq(A, self.image.ravel(), rcond=None)
+        self.image = self.image - (A @ coef).reshape(self.BoxSize)
+        print ('Removed background')
+        return None
