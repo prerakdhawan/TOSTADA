@@ -153,13 +153,29 @@ class PhaseDistribution:
                                   int(ymin/self.resolution):int(ymax/self.resolution) ]
         return PhaseDistribution(newimage,resolution=self.resolution)
 
-    def ReciprocalSpace(self):
+    def ReciprocalSpace(self,**kwargs):
         """
         Computes the reciprocal space response of the given phase distribution. Identical to ReciprocalSpace in PointDistribution. 
         First object is the SpectralDensity (2D or 3D) along with it's reciprocal space vectors.
         Second object is the angular-averaged of the SpectralDensity computed in Statistics.py.
+        
+        kwargs
+        ------
+        
+        window : str
+            Window for treating boundaries. If None, assumes periodic boundaries. If not None, currently implements Tukey window
+        
+        alpha : float
+            Alpha value for the tukey window. Relevant only when a tukey window is applied.
+        
+        form_factor : bool
+            Scales spectral density of the image with the form factor of individual pixels (sinc function). If False, simply uses the FFT. Default : True.
+
         """
-        self.Xq = self.Spectraldensity()
+        window = kwargs.get('window',None)
+        form_factor = kwargs.get('form_factor',True)
+        alpha = kwargs.get('alpha',0.1)
+        self.Xq = self.Spectraldensity(window=window,form_factor=form_factor,alpha=alpha)
         self.Xq_averaged = stats.angular_average(self.Xq,dkx=2*np.pi/self.Lx)
         return self.Xq,self.Xq_averaged
     
@@ -294,24 +310,39 @@ class PhaseDistribution:
         self.resolution = scale_sem/template_width
 
     
-    def Spectraldensity(self):
+    def Spectraldensity(self,form_factor=True,window=None,alpha=0.1):
         """
         Spectral Density X(q) for the given 2D or 3D image along with its spatial frequencies.
 
+        Parameters
+        ----------
+        
+        form_factor : bool
+            Scales spectral density of the image with the form factor of individual pixels (sinc function). If False, simply uses the FFT. Default : True.
+        
+        window : str
+            Window for treating boundaries. If None, assumes periodic boundaries. If not None, currently implements Tukey window
+        
+        alpha : float
+            Alpha value for the tukey window. Relevant only when a tukey window is applied.
+        
         Returns
         -------
         Xqdata : Ndarray
             Xqdata[0],Xqdata[1] ... are spatial frequencies and Xqdata[-1] is the spectral density
         """
-        xq = np.fft.fftshift(np.fft.fftn(self.image - self.volumefraction )) 
-        xq = np.abs(xq)**2 /np.size(self.image)
+        mask = np.ones(self.BoxSize) if window is None else filters.window(('tukey',alpha), self.BoxSize) 
+        norm_factor = np.sum(mask) if window is None else np.sum(mask**2)
+        xq = np.fft.fftshift(np.fft.fftn(mask * (self.image - self.volumefraction) ))
+        xq = np.abs(xq)**2 /norm_factor
         if (self.ndim==3):
             [_fftx,_ffty,_fftz] = np.meshgrid(self.ffty,self.fftx,self.fftz)
             data = np.asarray([_fftx,_ffty,_fftz])
         else:
             [_fftx,_ffty] = np.meshgrid(self.ffty,self.fftx)
-            print (_fftx.shape,_ffty.shape)
             data = np.asarray([_fftx,_ffty])
+        form_factor = np.prod((np.sinc(data * self.resolution / (2*np.pi)))**2,axis=0) if form_factor else 1.0
+        xq = form_factor * xq 
         Xqdata = np.concatenate((data, xq[None,:,:]), axis=0) 
         return Xqdata
 
