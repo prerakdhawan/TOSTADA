@@ -56,11 +56,20 @@ dev = [
     "twine>=5.0",        
 ]
 
+docs = [
+    "sphinx>=9.1",
+    "sphinx-autoapi>=3.8.1",
+    "sphinx_design>=0.7",
+    "furo>=2025.12",
+    "myst-parser>=5.1",
+    "myst-nb>=1.4",
+]
+
 viz = [ 
     "pyvista>=0.43", 
 ]
  
-all = ["tostada[gpu,viz,dev]"]  
+all = ["tostada[gpu,viz,dev,docs]"]  
   
 [project.urls]
 Homepage = "https://gitlab.informatik.uni-halle.de/mikromd/tostada" 

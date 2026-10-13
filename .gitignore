@@ -1,0 +1,4 @@
+# Installation and building
+*.egg-info/
+build/
+dist/
