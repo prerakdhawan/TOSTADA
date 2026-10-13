@@ -43,7 +43,7 @@ class Visualize:
         else:
             raise ValueError("Unsupported class type. Please provide an instance of PointDistribution or PhaseDistribution.")
     
-    def plot_reciprocal_space(self,ax=None,kmax=60,vmax=20,cmap='cividis'):
+    def plot_reciprocal_space(self,ax=None,kmax=60,vmax=20,cmap='cividis',**kwargs):
         """
         Plots reciprocal space data of the distribution and its angular-average.
         If PointDistribution, plots the structure factor S(q), If PhaseDistribution, plots the spectral density X(q).
@@ -59,7 +59,7 @@ class Visualize:
             return self._plot_structurefactor([ax1,ax2],kmax,vmax,cmap)
         elif isinstance(self.distribution, PhaseDistribution):
             #return self._plot_spectraldensity(ax,kmax,vmax,cmap)
-            return self._plot_spectraldensity([ax1,ax2],kmax,vmax,cmap)
+            return self._plot_spectraldensity([ax1,ax2],kmax,vmax,cmap,**kwargs)
         else:
             raise ValueError("Unsupported class type. Please provide an instance of PointDistribution or PhaseDistribution.")
         
@@ -84,10 +84,9 @@ class Visualize:
         else:
             raise ValueError("Unsupported class type. Please provide an instance of PointDistribution or PhaseDistribution.")
 
-    def _plot_pointdistribution(self,ax,facecolor):
-        #fig, ax = plt.subplots()
-        #if (self.distribution.ndim==2):
-        ax.scatter(self.distribution.positions[:,0], self.distribution.positions[:,1])
+    def _plot_pointdistribution(self,ax,facecolor,**kwargs):
+
+        ax.scatter(self.distribution.positions[:,0], self.distribution.positions[:,1],**kwargs)
 
         patches = [Circle((xi, yi), radius=self.distribution.diameter/2) for xi, yi in zip(self.distribution.positions[:,0], self.distribution.positions[:,1])]
         collection = PatchCollection(patches,
@@ -118,9 +117,8 @@ class Visualize:
         return ax
     
     def _plot_spectraldensity(self,ax,kmax,
-                              vmax,cmap):
-        #Xq = self.distribution.Spectraldensity()
-        Xq_ = self.distribution.ReciprocalSpace()
+                              vmax,cmap,**kwargs):
+        Xq_ = self.distribution.ReciprocalSpace(**kwargs)
         Xq = Xq_[0]
         if (self.distribution.ndim==2):
             cax = ax[0].pcolormesh(Xq[0],Xq[1],Xq[2],vmax=vmax,cmap=cmap)
@@ -202,8 +200,8 @@ class Visualize:
                                    vmax=vmax,cmap=cmap)
         ax[0].figure.colorbar(cax,ax=ax[0])
         ax[0].set_title('ACF $(\\mathbf{r})$')
-        ax[0].set_xlabel('$x_{x}$ ($\\mathrm{\\mu}$m)',fontsize=15)
-        ax[0].set_ylabel('$y_{x}$ ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax[0].set_xlabel('$x$ ($\\mathrm{\\mu}$m)',fontsize=15)
+        ax[0].set_ylabel('$y$ ($\\mathrm{\\mu}$m)',fontsize=15)
         ax[0].set_xlim(-Rmax,Rmax)
         ax[0].set_ylim(-Rmax,Rmax)
         ACF_averaged = stats.angular_average(self.distribution.ACF,dr)
