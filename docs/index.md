@@ -1,28 +1,56 @@
-# TOSTADA
+# TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)
 
-::::{grid} 2
-:gutter: 3
+```{include} ../README.md
+:start-after: <!-- indroduction-start -->
+:end-before: <!-- indroduction-end -->
+```
 
-:::{grid-item-card} Installation and Quickstart  
-:link: getting_started/installation 
-:link-type: doc 
-:text-align: center 
-Getting Started
-^^^
+## Key Features
 
-How to install TOSTADA and an example jupyter notebook to get started
+```{include} ../README.md
+:start-after: <!-- features-start -->
+:end-before: <!-- features-end -->
+```
 
-:::
+## Examples
 
-::::
+Explore [Tutorials](/tutorials/index) to get started with:
 
+```{include} ../README.md
+:start-after: <!-- examples-start -->
+:end-before: <!-- examples-end -->
+```
 
 
 ```{toctree}
 :hidden:
-:maxdepth: 2
-:caption: Contents
+:maxdepth: 5
 
-getting_started/index
-Reference <reference/tostada/index>
+Introduction <self>
+installation/index
 ```
+
+```{toctree}
+:hidden:
+:maxdepth: 5
+:caption: Physics
+
+physics/disordered_states
+Metrics <physics/metrics>
+Distribution from reciprocal space statistics <physics/distribution_from_reciprocal>
+Export/Import of distributions <physics/export_import_distributions>
+```
+
+```{toctree}
+:hidden:
+:maxdepth: 5
+:caption: API
+
+tutorials/index
+Refrence <API_refrence/index>
+```
+
+
+
+
+

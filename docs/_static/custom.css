@@ -1,0 +1,42 @@
+dl.py.class > dt {
+    background: #d989271b !important;
+    border-left: 4px solid #d96827;
+    border-top: #d96827 !important;
+}
+
+dl.py.method > dt,
+dl.py.function > dt {
+    background: #7e971b1b !important;
+    border-left: 4px solid #7e971b;
+    border-top: #7e971b !important;
+}
+
+dl.py.method > dt .sig-prename,
+dl.py.function > dt .sig-prename {
+    display: none;
+}
+
+.rst-content dl.field-list > dd li > p:has(+ ul),
+.rst-content dl.field-list > dd li > p:has(+ p + ul) {
+    display: inline;
+}
+
+.rst-content dl.field-list > dd {
+    margin-bottom: 16px !important;
+}
+
+.rst-content div[style] > p {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+}
+
+/* sidebar: hide the class entries, keep the sections and their methods */
+.wy-menu-vertical li:has(> a[href$="#tostada.pointprocess.Pointprocess"]),
+.wy-menu-vertical li:has(> a[href$="#tostada.phaseprocess.Phaseprocess"]),
+.wy-menu-vertical li:has(> a[href$="#tostada.PointDistribution.PointDistribution"]),
+.wy-menu-vertical li:has(> a[href$="#tostada.PhaseDistribution.PhaseDistribution"]) {
+    display: none;
+}
+
+

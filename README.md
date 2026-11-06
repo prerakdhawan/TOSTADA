@@ -2,14 +2,17 @@
 <img src="src/tostada/images/tostada_pic1.png" width="800">
 </div>
 
-# TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)
 
+# TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)
+<!-- indroduction-start -->
 _TOolkit for Spatially TAilored Disordered Arrangement (TOSTADA)_ is a GPU-enabled python package for **creating**, **simulating** and **analyzing** spatially disordered distributions with prescribed correlations in 2D/3D.
 The key idea behind `tostada` is to translate inverse-design and statistics tools specifically used in the context of disordered media to open-source physics-based solvers in an inter-operable manner.
 This repository brings together multiple computational strategies to explore the physics and geometry of complex disordered systems. Whether it is simulating wave propagation through disordered media, characterizing porous microstructure statistics, or using optimization tools to generate materials with tailored correlation functions — this toolkit has you covered.
+<!-- indroduction-end -->
 
 ## 🔧 Features
 
+<!-- features-start -->
 ### 💻 Generation (Inverse Design)
 Generate disordered phase or point distributions with **prescribed spatial statistics** using:
   - Reciprocal-space optimization
@@ -28,11 +31,12 @@ Generate disordered phase or point distributions with **prescribed spatial stati
   - Structure factor and Spectral density 
   - Morphological structure metrics
   - Hyperuniformity index
+<!-- features-end -->
   
 ## Installation
 
 ### Standard installation
-
+<!-- install-standard-start -->
 Until the package is published on PyPI, install straight from GitHub
 ```bash
 pip install "git+https://gitlab.informatik.uni-halle.de/mikromd/tostada.git"
@@ -41,9 +45,10 @@ pip install "tostada[gpu] @ git+https://gitlab.informatik.uni-halle.de/mikromd/t
 `device_info()` should report a `CudaDevice` on a GPU installation and a `CpuDevice` otherwise. 
 
 That is all you need for inverse design, spatial statistics, phase-field dynamics and the lattice-particle mechanics solver on CPU/GPU.
+<!-- install-standard-end -->
 
 ### Installation with MEEP (optical simulations)
-
+<!-- install-meep-start -->
 If you wish to use `tostada` for optical simulations of disordered media, tostada offers a plugin to MEEP. However, MEEP is a C++ package whose MPI build (for parallelized simulations) is currently distributed through **conda-forge, not PyPI**. If conda isn't already installed, use [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main) for a light version. The full installation can then be done through:
 
 ```bash
@@ -55,12 +60,15 @@ conda env create -f environment.yml        # CPU
 # OR
 conda env create -f environment_gpu.yml    # NVIDIA GPU
 
-conda activate tostada                     # or tostada-gpu
+conda activate tost                     # or tostada-gpu
 ```
+<!-- install-meep-end -->
 
 ## 📌 Examples
 
 Explore example notebooks and scripts in the `examples/` folder to get started with:
+
+<!-- examples-start -->
 
 - Generating disordered hyperuniform media with different properties
 
@@ -72,6 +80,10 @@ Explore example notebooks and scripts in the `examples/` folder to get started w
 
 and many more...
 
+<!-- examples-end -->
+
+<!-- ipynb-usage-start -->
+
 If you do not have [Jupyterlab](https://jupyter.org/) already in your environment and wish to run the examples notebooks, install the development version 
 ```bash
 pip install "tostada[dev] @ git+https://gitlab.informatik.uni-halle.de/mikromd/tostada.git" 
@@ -81,6 +93,8 @@ If you have already downloaded a CPU/GPU build, you can simply update using
 cd tostada
 pip install -e .[dev]
 ```
+
+<!-- ipynb-usage-end -->
 
 ## 📚 Citation and Acknowledgements
 
