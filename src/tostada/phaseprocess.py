@@ -15,9 +15,24 @@ from sys import exit
 
 class Phaseprocess:
     """
+    TODO: Verify Docstrings
+    
     Create a phase definition for a given volume fraction, size, resolution in 2D/3D. 
-    This can be used to create common phase distributions (tostada.PhaseDistribution) obtained from a point distribution (tostada.PointDistribution object)
-    or one obtained from Gaussian random fields.
+    This can be used to create common phase distributions :class:`tostada.PhaseDistribution <tostada.PhaseDistribution.PhaseDistribution>` obtained from a point distribution :class:`tostada.PointDistribution <tostada.PointDistribution.PointDistribution>` object or one obtained from Gaussian random fields.
+
+    Parameters
+    ----------
+    volumefraction : float
+        Fraction of the solid phase
+    BoxSize : float | list
+        Size of the computational domain along each axes as [Lx,Ly,Lz]. If `BoxSize` is scalar `self.BoxSize` will be set to [Lx, Lx, Lx]
+    resolution : float
+        Resolution of each pixel/voxel (in microns)
+    interpore_distance : float
+        Mean distance between each empty phase
+    is_3d : bool, optional
+        If True, Lz = 0 of `self.BoxSize`. by default False
+
     
     TODO: Add microstructure obtained from Cahn-Hilliard equation 
     """
@@ -45,7 +60,6 @@ class Phaseprocess:
 
         Returns
         -------
-
         PhaseDistribution object
         """
         correlation_length=self.interpore_distance
@@ -176,8 +190,8 @@ class Phaseprocess:
                                 additional_func = None, additional_mufunc = None, compute_hyperuniformity = True,
                                 *args, **kwargs):
         """
-        Generate a PhaseDistribution object through a phase-field method simulation in `tostada.physics.phase_field_dynamics`. 
-        TODO : Not tested. Use `tostada.physics.phase_field_dynamics` if gives an error.
+        Generate a PhaseDistribution object through a phase-field method simulation in :class:`tostada.physics.phase_field_dynamics <tostada.physics.phase_field_dynamics.PhaseField>`. 
+        TODO : Not tested. Use :class:`tostada.physics.phase_field_dynamics <tostada.physics.phase_field_dynamics.PhaseField>` if gives an error.
 
         Parameters
         ----------

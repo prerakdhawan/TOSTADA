@@ -37,8 +37,8 @@ class Material:
     optical_dispersions : [ N_oscillators x 3 ] ndarray
             Optimal oscillator parameters fitted to experimental curves. 
             For each of N oscillators, the 3 parameters are the ones parameterizing a Lorentzian oscillator. 
-            These parameters can be used directly to create a MEEP dispersive material using `self.meep_dispersion()`. 
-            If any frequency is zero, uses Drude Dispersion model instead. To get a wavelength-dependent dispersion from this, use `self.create_dispersion()`
+            These parameters can be used directly to create a MEEP dispersive material using :meth:`self.meep_dispersion() <tostada.util.materials.Material.meep_dispersion>`. 
+            If any frequency is zero, uses Drude Dispersion model instead. To get a wavelength-dependent dispersion from this, use :meth:`self.create_dispersion() <tostada.util.materials.Material.create_dispersion>`
 
     youngs_modulus : float, optional 
         Young's modulus of the material in N/m^2.
@@ -95,8 +95,8 @@ class Material:
         optical_dispersion : [ N_oscillators x 3 ] ndarray
             Optimal oscillator parameters fitted to experimental curves. 
             For each of N oscillators, the 3 parameters are the ones parameterizing a Lorentzian oscillator ordered as [sigma_n , frequency_n, gamma_n]. 
-            These parameters can be used directly to create a MEEP dispersive material using `self.meep_dispersion()`. 
-            If any frequency is zero, uses Drude Dispersion model instead. To get a wavelength-dependent dispersion from this, use `self.create_dispersion()`
+            These parameters can be used directly to create a MEEP dispersive material using :meth:`self.meep_dispersion() <tostada.util.materials.Material.meep_dispersion>`. 
+            If any frequency is zero, uses Drude Dispersion model instead. To get a wavelength-dependent dispersion from this, use :meth:`self.create_dispersion() <tostada.util.materials.Material.create_dispersion>`
 
         """
         mp = _meep()

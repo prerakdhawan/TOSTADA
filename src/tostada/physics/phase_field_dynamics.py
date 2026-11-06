@@ -33,9 +33,9 @@ except Exception as e:
 
 class PhaseField:
     """
-    Time evolve a `tostada.PhaseDistribution` in 2D/3D with GPU acceleration (CuPy) using phase field theory. 
+    Time evolve a :class:`tostada.PhaseDistribution <tostada.PhaseDistribution.PhaseDistribution>` in 2D/3D with GPU acceleration (CuPy) using phase field theory. 
     The phase evolution occurs with thermodynamic, symmetry and other considerations imposed via an appropriate free-energy for a given morphology.
-    The `PhaseDistribution` modelled here can be interpretted as a spatially inhomogeneous field that, when optimized via a free-energy minimization protocol, 
+    The :class:`~tostada.PhaseDistribution.PhaseDistribution` modelled here can be interpretted as a spatially inhomogeneous field that, when optimized via a free-energy minimization protocol, 
     exhibits several spatial localized maximas, each of which can be identified as the average location of atoms/particles. 
     Such a phase evolution has been widely used to study grain boundary dynamics, crystal nucleation, crystal growth, glass formation, crack propagation and etc.      
     
@@ -101,7 +101,7 @@ class PhaseField:
         Chemical potential for solve the Cahn-Hilliard (CH) equation. With an unstable random distribution of concentration field c(r) for a particular
         volume fraction as an initial guess, the system evolves in a manner that minimizes the surface energy. 
         Depending on the initial conditions and the volume fraction, different two-phase distributions like nucleation and spinodal decomposition can be obtained.
-        Final result is a phase distribution (`tostada.PhaseDistribution` object).
+        Final result is a phase distribution (:class:`tostada.PhaseDistribution <tostada.PhaseDistribution.PhaseDistribution>` object).
 
         Parameters
         ----------
@@ -198,9 +198,9 @@ class PhaseField:
         return cp.fft.ifftn(rhs_hat).real
 
     def chemical_potential(self,psi: cp.ndarray,additional_mufunc,*args,**kwargs):
-        """
+        r"""
         EFFECTIVE Chemical potential for the system. The term "effective" because not all models have a well-defined free energy functional. 
-        Since the time-evolution occurs through free-energy minimization, the effective chemical potential acts as gradients for the optimization (\\mu = dF/d\\psi). 
+        Since the time-evolution occurs through free-energy minimization, the effective chemical potential acts as gradients for the optimization (:math:`\mu = dF/d\psi`). 
         Currently, the available models are `cahn_hilliard`,`swift_hohenberg`,`KS_damped`,`pfc_hex`,`pfc_square` and `pfc_bcc`. 
         Perturbations to these models can be passed through custom `additional_mufunc` with its respective keyword arguments.
 
@@ -231,9 +231,9 @@ class PhaseField:
     def PFC_eqn(self,psi: cp.ndarray, noise_amp : float = 0, 
                 noise_std : float = 1.0, additional_func=None, 
                 additional_mufunc=None, *args, **kwargs):
-        """
+        r"""
         Phase field term (RHS) that gets time evolved. Different chemical potentials yield different morphologies in time. 
-        The generalized expression is given as d\\phi/dt = D * laplacian(\\mu) + laplacian(eta) where eta(r) is the Gaussian white noise field with zero mean.
+        The generalized expression is given as :math:`d\phi/dt = D * laplacian(\mu) + laplacian(eta)` where eta(r) is the Gaussian white noise field with zero mean.
         Perturbations to the chemical potential can be passed using `additional_mufunc` while perturbations to the general expression can be passed through `additional_func`.
 
         Parameters
@@ -300,7 +300,7 @@ class PhaseField:
         x : cupy array
 
         func : python function
-            Function whose output needs to evolve in time. Example: `self.PFC_eqn()`
+            Function whose output needs to evolve in time. Example: :meth:`self.PFC_eqn() <tostada.physics.phase_field_dynamics.PhaseField.PFC_eqn>`
         
         dt : float
             Time step for each time iteration. Keep this small for stability. 
@@ -319,7 +319,7 @@ class PhaseField:
     # solver function with performance tracking
     def solve(self, additional_mufunc=None, additional_func=None,compute_hyperuniformity=True,target_dmean = None, *args,**kwargs): 
         """
-        Time-evolution for the Phase field. Returns a `tostada.PhaseDistribution` object.
+        Time-evolution for the Phase field. Returns a :class:`tostada.PhaseDistribution <tostada.PhaseDistribution.PhaseDistribution>` object.
         """
         if (self.initial_state is None):
             psi_ = cp.asarray(self.initialize_lattice_2(noise=0.01))

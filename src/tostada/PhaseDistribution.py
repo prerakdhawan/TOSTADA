@@ -127,7 +127,7 @@ class PhaseDistribution:
     
     def zoom(self,Box):
         """
-        Selects a given region from the phase distribution. Similar to the zoom function in `PointDistribution`.
+        Selects a given region from the phase distribution. Similar to the zoom function in :class:`~tostada.PointDistribution.PointDistribution`.
         
         Parameters
         ----------
@@ -155,22 +155,17 @@ class PhaseDistribution:
 
     def ReciprocalSpace(self,**kwargs):
         """
-        Computes the reciprocal space response of the given phase distribution. Identical to ReciprocalSpace in PointDistribution. 
+        Computes the reciprocal space response of the given phase distribution. Identical to :meth:`ReciprocalSpace <tostada.PointDistribution.PointDistribution.ReciprocalSpace>` in :class:`~tostada.PointDistribution.PointDistribution`. 
         First object is the SpectralDensity (2D or 3D) along with it's reciprocal space vectors.
         Second object is the angular-averaged of the SpectralDensity computed in Statistics.py.
-        
-        kwargs
-        ------
-        
-        window : str
-            Window for treating boundaries. If None, assumes periodic boundaries. If not None, currently implements Tukey window
-        
-        alpha : float
-            Alpha value for the tukey window. Relevant only when a tukey window is applied.
-        
-        form_factor : bool
-            Scales spectral density of the image with the form factor of individual pixels (sinc function). If False, simply uses the FFT. Default : True.
 
+        Parameters
+        ----------
+
+        **kwargs
+            - **window** (str): Window for treating boundaries. If None, assumes periodic boundaries. If not None, currently implements Tukey window
+            - **alpha** (float): Alpha value for the tukey window. Relevant only when a tukey window is applied.
+            - **form_factor** (bool): Scales spectral density of the image with the form factor of individual pixels (sinc function). If False, simply uses the FFT. Default : True.
         """
         window = kwargs.get('window',None)
         form_factor = kwargs.get('form_factor',True)
@@ -215,37 +210,27 @@ class PhaseDistribution:
 
     def compute_morphology(self,smax=6,**kwargs):
         """
-        Construct a `Morphology` object containing the shape properties of the detected objects/voids. 
+        Construct a :class:`~tostada.Statistics.Morphology` object containing the shape properties of the detected objects/voids. 
         Currently, yields center-of-mass of each arbitrarily shaped object/void, their interfacial length (perimeter) and the shape descriptors capturing the local s-fold symmetries in the system. 
-        See tostada.Statistics for further details.
+        See :mod:`tostada.Statistics` for further details.
 
         Parameters
         ----------
-
         smax : int
-            Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
-
-        kwargs 
-        ------
-
-        pad : float
-            Padding around the image boundaries (in microns) where the objects should be excluded. Default : 0.
-        
-        is_periodic : bool
-            Does the image obey periodic boundaries. Suitable for numerically generated samples with periodic conditions. Default : False.
-
-        level : float
-            grayscale value along which the contours are present. Tune this for detecting the objects/pores. Passed to skimage's marching cubes for computing iso-valued curves.
-        
-        tolerance : float
-            Maximum distance from original points of the polygon (detected from contours) to approximated polygons. Tune this for detecting polygon shapes. 
+            Maximum order until which the structure metrics are to be evaluated.
+            For example, smax=6 captures q0, q1, ..., q6.
+        **kwargs
+            - **pad** (float): Padding around the image boundaries (in microns) where the objects should be excluded. Default: 0.
+            - **is_periodic** (bool): Whether the image obeys periodic boundaries. Suitable for numerically generated samples with periodic conditions. Default: False.
+            - **level** (float): Grayscale value along which the contours are present. Tune this for detecting the objects/pores. Passed to skimage's marching cubes for computing iso-valued curves. Default: 0.05.
+            - **tolerance** (float): Maximum distance from the original points of the polygon (detected from contours) to the approximated polygon. Tune this for detecting polygon shapes. Default: 1.
 
         Returns
         -------
 
-        Mor : Morphology object
+        Mor : Morphology
             This object contains information about the center-of-masses of detected objects, their coordinates as well as their normalized Minkowski structure metrics.
-            The detected objects can be visualized using `tostada.Visualize.plot_detected_polygons()`
+            The detected objects can be visualized using :meth:`~tostada.plot_util.Visualize.plot_detected_polygons`
             
         """
         Mor = Morphology(self,smax, **kwargs)
@@ -376,7 +361,7 @@ class PhaseDistribution:
         
         Returns
         -------
-        tesselated (numpy.Ndarray): (2*N+1)Boxsize[0] x (2*N+1)Boxsize[1] array if 2D else (2*N+1)Boxsize[0] x (2*N+1)Boxsize[1] x (2*N+1)Boxsize[2].
+        tesselated (numpy.Ndarray) : (2*N+1)Boxsize[0] x (2*N+1)Boxsize[1] array if 2D else (2*N+1)Boxsize[0] x (2*N+1)Boxsize[1] x (2*N+1)Boxsize[2].
         """
         ranges = [np.arange(-copies, copies + 1) for _ in range(self.ndim)]
         grid = np.array(np.meshgrid(*ranges))
@@ -407,10 +392,14 @@ class PhaseDistribution:
         return Hdata
 
     def translational_order_metric(self,q_threshold=None,pad=0,**kwargs):
-        """
+        r"""
         Translational order metric for the given phase distribution. It quantifies "ordered-ness" in a system and vanishes for a poisson point process. For crystalline, poly-crystalline type processes, it diverges in the thermodynamic limit.
-        \\tau = (1/(2pi D)^d)\\int^{\\infty}_0 |S(q)|^2 q^{d-1} dq
-        Here, tau is computed using the angular-averaged spectral density and since the integration is from q \\in [0,\\infty], this metric is dependent on the largest `q_threshold` used in numerical integration. 
+
+        .. math::
+
+            \tau = \frac{1}{(2 \pi D)^d}\int^{\infty}_0 |S(q)|^2 q^{d-1} dq
+
+        Here, :math:`\tau` is computed using the angular-averaged spectral density and since the integration is from :math:`q \in [0,\infty]`, this metric is dependent on the largest `q_threshold` used in numerical integration. 
 
         Parameters
         ----------

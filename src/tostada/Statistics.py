@@ -207,7 +207,7 @@ def SphericalContactDistribution(image,resolution):
 
     Parameters
     ----------
-    Image : numpy.Ndarray
+    image : numpy.Ndarray
         Image data (2D or 3D).  
     resolution : float
         Resolution of the pixel/voxel.
@@ -382,7 +382,7 @@ class Morphology:
 
     distribution : tostada.PhaseDistribution object
         Distribution for which the morphological parameters are to be evaluated. 
-        Both `PointDistribution` and `PhaseDistribution` can create a `Morphology` object through a `get_morphological_parameters()` method.
+        Both :class:`~tostada.PointDistribution.PointDistribution` and :class:`~tostada.PhaseDistribution.PhaseDistribution` can create a `Morphology` object through a `get_morphological_parameters()` method.
 
     smax : int
         Maximum order until which the structure metrics are to be evaluated. For example, smax=6 captures q0, q1, ..., q6. 
@@ -402,13 +402,13 @@ class Morphology:
     def polygon_normals_and_lengths(polygon):
         """
         Quantifies the interface (boundary in 1D) of a polygon by evaluating the length of each segment and the angle its corresponding normal makes with the horizontal axis.
-        This is used in `structure_metrics` to decompose the obtained quantity into irreducible representation of the rotation group.
+        This is used in :meth:`structure_metrics <tostada.Statistics.Morphology.structure_metrics>` to decompose the obtained quantity into irreducible representation of the rotation group.
 
         Parameters
         ----------
 
         polygon : N x 2 array
-            Array of points comprising the input polygon. If using a `PhaseDistribution`, this can be the shape of detected objects/pores.
+            Array of points comprising the input polygon. If using a :class:`~tostada.PhaseDistribution.PhaseDistribution`, this can be the shape of detected objects/pores.
 
         Returns
         -------
@@ -519,15 +519,14 @@ class Morphology:
 
         Parameters
         ----------
-
         skipind : int
             Number of initial polygons to be skipped (first one or two are generally the simulation domain itself)
 
         orientations : bool
             If True, plots the orientation statistics
+
         Returns
         -------
-
         ax : matplotlib.axes, optional
             Matplotlib axes containing the detected polygons. Can be used to combine several plots. If not provided, creates a new figure.
 

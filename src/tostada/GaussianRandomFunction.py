@@ -22,7 +22,9 @@ def generate_grf(max_dist,dx,correlation_length,param,is_3D=False,options=['gaus
         2D or 3D domain. 
     options : list of strings
         options for covariances for each param. See Statistics.py for reference.
-    Returns:
+
+    Returns
+    -------
         np.ndarray: A 3D binary array representing the porous media (1 for solid, 0 for pore).
     """
     

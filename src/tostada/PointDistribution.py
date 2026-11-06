@@ -32,6 +32,8 @@ except Exception as e:
     
 class PointDistribution:
     """
+    TODO: Verify: Attributes
+
     Create a point-distribution object from a given point-cloud of particle/pore positions in 2D/3D. 
 
     Parameters
@@ -42,6 +44,25 @@ class PointDistribution:
         Diameter of each particle
     BoxSize : list
         Size of the computational domain along each axes as [Lx,Ly,Lz]. If Lz=0, assumes a 2D instance.
+
+    Attributes
+    ----------
+    is_3D : bool
+        True if the positions have more than one distinct z-value.
+    ndim : int
+        Number of dimensions (2 or 3).
+    Lx : float
+        Extent of the point arrangement along each axis
+    Ly : float
+        Extent of the point arrangement along each axis
+    Lz : float
+        Extent of the point arrangement along each axis
+    totalparticles : int
+        Total number of particles.
+    particledensity : float
+        Number of particles per area (2D) or volume (3D).
+    dmean : float
+        Mean inter-particle distance.
     """
     def __init__(self, positions, diameter, BoxSize):
         self.positions = positions
@@ -109,10 +130,9 @@ class PointDistribution:
         return A 
         
     def ReciprocalSpace(self,kmax,dkx=None,**kwargs):
-        dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         """
         Computes the reciprocal space response of the given point-distribution. For details, refer to Sk_jax_custom.
-        Identical to ReciprocalSpace in PhaseDistribution. 
+        Identical to :meth:`ReciprocalSpace <tostada.PhaseDistribution.PhaseDistribution.ReciprocalSpace>` in :class:`~tostada.PhaseDistribution.PhaseDistribution`. 
 
         Parameters
         ----------
@@ -123,12 +143,10 @@ class PointDistribution:
         dkx : float
             Reciprocal-space resolution.
 
-        kwargs: 
-        
-        Additional arguments for how to compute S(q). Possible inputs:
-        
-        batch_size
-            How to chunk the (qx,qy,qz,x,y,z) mesh for the computation. For large kmax or large spatial domains, use a large batch_size to avoid memory overload 
+        **kwargs
+            Additional arguments for how to compute S(q):
+
+            - **batch_size** (`int`): How to chunk the (qx,qy,qz,x,y,z) mesh for the computation. For large kmax or large spatial domains, use a large batch_size to avoid memory overload 
 
         Returns
         -------
@@ -139,6 +157,7 @@ class PointDistribution:
             Angular-average of the StructureFactor computed in Statistics.py.
 
         """
+        dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         batch_size=kwargs.get('batch_size',100)
         self.Sq = self.Sk_jax_custom(kmax=kmax,batch_size_fac=batch_size)
         self.Sq_averaged = stats.angular_average(self.Sq,dkx)
@@ -147,7 +166,7 @@ class PointDistribution:
     
     def RealSpaceCorrelations(self,dr=None):
         """
-        Computes real-space correlation function (two-point correlation function). For details, refer to `Pair_correlation()` method.
+        Computes real-space correlation function (two-point correlation function). For details, refer to :meth:`Pair_correlation() <tostada.PointDistribution.PointDistribution.Pair_correlation>` method.
         """
         dr = np.sqrt(2)*6*self.dmean/100 if dr is None else dr
         self.G2r = self.Pair_correlation()
@@ -155,9 +174,9 @@ class PointDistribution:
         return self.G2r,self.G2r_averaged
     
     def Hyperuniformity_data(self,hud_class=False,kmax=80,dkx=None,pad=1,roi=10,fwhm=True,**kwargs):
-        """
+        r"""
         Spectral width (FWHM) and Hyperuniformity index of the point distribution. See Statistics.py for further details. 
-        Note: FWHM may not always be meaningfull for point-distributions as a measure of spectral width here since S(q) -> 1 for q>>0
+        Note: FWHM may not always be meaningfull for point-distributions as a measure of spectral width here since :math:`S(q) \to 1` for :math:`q>>0`
         """
         #if not hasattr(self, 'Sq_averaged'):
         q_ind_max = kwargs.get('q_ind_max',4)
@@ -181,10 +200,14 @@ class PointDistribution:
         return Hdata
     
     def translational_order_metric(self,kmax=80,q_threshold=None,dkx=None,pad=0,**kwargs):
-        """
+        r"""
         Normalized translational order metric for the given point distribution. It quantifies "ordered-ness" in a system and vanishes for a poisson point process. For crystalline, poly-crystalline type processes, it diverges in the thermodynamic limit.
-        \\tau = (1/(2pi D)^d)\\int^{\\infty}_0 |S(q)|^2 q^{d-1} dq
-        Here, tau is computed using the angular-averaged structure factor and since the integration is from q \\in [0,\\infty], this metric is dependent on what is the largest `q_max` used for computing S(q) and what is the largest `q_threshold` used in numerical integration.
+
+        .. math::
+
+            \tau = \frac{1}{(2 \pi D)^d}\int^{\infty}_0 |S(q)|^2 q^{d-1} dq
+
+        Here, :math:`\tau` is computed using the angular-averaged structure factor and since the integration is from :math:`q \in [0,\infty]`, this metric is dependent on what is the largest :math:`q_{max}` used for computing :math:`S(q)` and what is the largest `q_threshold` used in numerical integration.
 
         Parameters
         ----------
@@ -194,12 +217,13 @@ class PointDistribution:
             Largest q used for the summation. Default : sqrt(2) * q_max
         pad : int
             First M values from S[0,0] that need to be ignored. Default : 0
+        **kwargs
+            - **pre_factor** (`float`): Normalization for the metric. Default : 1
         
         Returns
         -------
         tau : float
             Translational order metric
-
         """
         pre_factor = kwargs.get('pre_factor',1)
         dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
@@ -299,7 +323,7 @@ class PointDistribution:
     
     def compute_morphology(self,smax=6,**kwargs):
         """
-        Construct a `Morphology` object containing the shape properties of the objects/voids. 
+        Construct a :class:`~tostada.Statistics.Morphology` object containing the shape properties of the objects/voids. 
         Currently, yields center-of-mass (comparable to `self.positions`) of each arbitrarily shaped object/void, their interfacial length (perimeter) 
         and the shape descriptors capturing the local s-fold symmetries in the system. See tostada.Statistics for further details.
 
@@ -314,7 +338,7 @@ class PointDistribution:
 
         Mor : Morphology object
             This object contains information about the center-of-masses of detected objects, their coordinates as well as their normalized Minkowski structure metrics.
-            The detected objects can be visualized using `tostada.Visualize.plot_detected_polygons()`
+            The detected objects can be visualized using :meth:`~tostada.plot_util.Visualize.plot_detected_polygons()`
         
         """
 
@@ -405,14 +429,19 @@ class PointDistribution:
         """
         return (2*copies + 1) * np.array(self.BoxSize)
 
-    def Hermitiansymmetry(self,data):
+    def Hermitiansymmetry(self, data):
         """
-        Uses Hermitian Symmetry for creating full data in 2D/3D. Currently only used for StructureFactor for S(-k) = S(k).
+        Uses Hermitian Symmetry for creating full data in 2D/3D. Currently only used for StructureFactor for :math:`S(-k) = S(k).`
         For mapping vectors (without the symmetry), the signs are flipped.
 
-        Parameters:
+        Parameters
+        ----------
         data : numpy.ndarray
             half-arrays to be extruded with symmetry condition. data[0], data[1], ... are mapping vectors and data[-1] is array with hermitian symmetry.
+
+        Returns
+        -------
+
         """
         Data_full = []
         for i in range(data.shape[0]):
@@ -530,12 +559,18 @@ class PointDistribution:
         
         Parameters
         ----------
-        kmax (float): Maximum k value in the reciprocal space
-        custom_pos (Optional | Ndarray): If None, uses self.positions
-        dkx (Optional | float): Reciprocal space resolution along x-axis
-        dky (Optional | float): "" y-axis
-        dkz (Optional | float): "" z-axis
-        k_vecs (Optional | Ndarray): Meshgrid of k vectors [KX,KY,KZ] for the tensor product. If None, constructs KX,KY,KZ from dkx,dky,dkz. Note: Overrules kmax and dkx
+        kmax : float
+            Maximum k value in the reciprocal space
+        custom_pos: Ndarray, optional
+            If None, uses self.positions
+        dkx : float, optional
+            Reciprocal space resolution along x-axis
+        dky : float, optional
+            "" y-axis
+        dkz : float, optional
+            "" z-axis
+        k_vecs : Ndarray, optional
+            Meshgrid of k vectors [KX,KY,KZ] for the tensor product. If None, constructs KX,KY,KZ from dkx,dky,dkz. Note: Overrules kmax and dkx
         """
         custom_pos = custom_pos if custom_pos is not None else self.positions
         if dkx is None:
@@ -1076,8 +1111,8 @@ class PointDistribution:
         """
         For a given chi, returns the Q_limit until which S(Q) should be zero.
         
-        Parameter
-        ---------
+        Parameters
+        ----------
         dmean : float
             Mean interparticle distance for which chi needs to be normalized.
 

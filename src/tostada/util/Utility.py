@@ -13,7 +13,7 @@ def read_file(folder_path, keyword, N=0):
     """
     Reads the Nth file from folder_path with the given keyword. If no keyword and/or N is passed, the 0th file from the folder is picked. 
     Makes it convenient to read files generated from a parametric study. Loading is according to the file extension. 
-    Currently supports `tiff`, `png`, `npy`, `npz`, `csv` and `pkl` (from .save() functions of `PointDistribution` and `PhaseDistribution`).
+    Currently supports `tiff`, `png`, `npy`, `npz`, `csv` and `pkl` (from .save() functions of :class:`~tostada.PointDistribution.PointDistribution` and :class:`~tostada.PhaseDistribution.PhaseDistribution`).
     """
     def extract_number(filename):
         """
@@ -66,11 +66,32 @@ def load_distribution(filename):
 
 
 class Spectrum:
-    def __init__(self, wavelength, spectra, distribution=None,kmax=50,form_factor=None):
-        """
-        Define properties of a scattering response as a function of wave-vectors (not only a function of spatial frequencies but also of temporal frequencies).
+    """
+    Define properties of a scattering response as a function of wave-vectors (not only a function of spatial frequencies but also of temporal frequencies).
 
-        """
+    TODO: Update / Verify: Parameters + Attributes
+
+    Parameters
+    ----------
+    wavelength : ndarray
+        Wavelengths (in microns)
+    spectra : ndarray
+        Spectral data associated with `wavelength`
+    distribution : PointDistribution
+
+    kmax: float, optional
+
+    form_factor: ndarray, optional
+
+    
+    Attributes
+    ----------
+    Sq_int : scipy.RegularGridInterpolator
+            Scipy interpolation object in 2D
+    Sq1d_int : scipy.interp1d
+            Scipy interpolation object in 1D
+    """
+    def __init__(self, wavelength, spectra, distribution=None,kmax=50,form_factor=None):
         self.wavelength = wavelength # in microns
         self.spectra = spectra
         self.distribution = distribution
@@ -116,21 +137,21 @@ class Spectrum:
         return interp_Sq,interp_Sq1d
     
     def Angular_spectrum(self,theta_res=200):
-        """
-        Determines the angular spectrum of a system. It yields the scattering response I(\\theta,\\phi,\\lambda). 
-        Currently, the form-factor is not included, so I(\\theta,\\phi,\\lambda) = S(\\theta,\\phi,\\lambda).
+        r"""
+        Determines the angular spectrum of a system. It yields the scattering response :math:`I(\theta,\phi,\lambda)`. 
+        Currently, the form-factor is not included, so :math:`I(\theta,\phi,\lambda)` = :math:`S(\theta,\phi,\lambda)`.
 
         Parameters
         ----------
 
         theta_res : int
-            Sampling frequency for polar angle \theta.
+            Sampling frequency for polar angle :math:`\theta`.
         
         Returns
         -------
 
         I_array : N_wvl x theta_res x theta_res
-            2D Scattering response as a function of each wavelength. It essentially maps the incident wavevector (2\\pi/wavelength) to kx,ky grid.
+            2D Scattering response as a function of each wavelength. It essentially maps the incident wavevector (:math:`2\pi`/wavelength) to kx,ky grid.
 
         I1d_array : N_wvl x N_theta
             Angular-averaged scattering response as a function of theta and wavelength.

@@ -43,7 +43,7 @@ else:
     
 class LatticeParticleMethod:
     """
-    Simulate mechanical response of a `tostada.PhaseDistribution` using prescribed boundary conditions. 
+    Simulate mechanical response of a :class:`tostada.PhaseDistribution <tostada.PhaseDistribution.PhaseDistribution>` using prescribed boundary conditions. 
     NOTE : Currently only implemented for 2D systems. 
 
     Parameters
@@ -159,7 +159,7 @@ class LatticeParticleMethod:
     @staticmethod
     def load(filename):
         """
-        Load an instance of the saved results created from `.save()`.
+        Load an instance of the saved results created from :meth:`.save() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.save>`.
 
         Parameters
         ----------
@@ -398,7 +398,7 @@ class LatticeParticleMethod:
     def compute_local_properties(self, roi,non_locality=True, **kwargs):
         """
         Computes internal forces in the system for the given region of interest by comparing current positions with positions at t=0. 
-        Local displacements leads to strain which in return leads to local stresses. For damage, use `self.compute_local_properties_damage()`
+        Local displacements leads to strain which in return leads to local stresses. For damage, use :meth:`self.compute_local_properties_damage() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.compute_local_properties_damage>`
         """
         is_non_local = non_locality
         outside = np.where(roi == False)[0]
@@ -523,7 +523,7 @@ class LatticeParticleMethod:
         Parameters
         ----------        
         Force_pairs : (N x 6) cupy array
-            Force on particle i due to its j neighbours. This is accesible after running `self.compute_local_properties()` or `self.compute_local_properties_damage()`.
+            Force on particle i due to its j neighbours. This is accesible after running :meth:`self.compute_local_properties() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.compute_local_properties>` or :meth:`self.compute_local_properties_damage() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.compute_local_properties_damage>`.
         
         Returns
         -------
@@ -1027,7 +1027,7 @@ class LatticeParticleMethod:
         ----------
 
         Force_pairs : (N x 6) array
-            Force on particle i due to its j neighbours. This is accesible as `self.Force_pairs` after running the quasi-static `self.run_sim()`.
+            Force on particle i due to its j neighbours. This is accesible as `self.Force_pairs` after running the quasi-static :meth:`self.run_sim() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.run_sim>`.
         """
         Stresses = self.get_stresses(Force_pairs)
         Strains = self.get_strains()
@@ -1036,7 +1036,7 @@ class LatticeParticleMethod:
     def stress_from_constitutive_relations(self):
         """
         Stress components obtained from the constitutive relations sigma = C eps 
-        Uses strain components evaluated from `self.get_strains()`. Currently only implemented for 2D.
+        Uses strain components evaluated from :meth:`self.get_strains() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.get_strains>`. Currently only implemented for 2D.
         Some papers call this as effective stresses. Not to be confused with the homogenized effective stress tensor components obtained using `self.effective_quantities`.
         """
         eps_xx,eps_xy,eps_yy = self.get_strains()
@@ -1053,7 +1053,7 @@ class LatticeParticleMethod:
         Returns
         -------
         sigma_rankine_t : [Nx x Ny] array
-            Sigma rankine for each particle. Since `self.get_strains()` reshapes the data, the sigma here is [Nx x Ny] as opposed to usual [(N_x N_y) x 1].
+            Sigma rankine for each particle. Since :meth:`self.get_strains() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.get_strains>` reshapes the data, the sigma here is [Nx x Ny] as opposed to usual [(N_x N_y) x 1].
             To put it back in same ordering (to remove exclusions), use `.T.flatten()` 
         """
         if (Forces is None):
@@ -1148,7 +1148,7 @@ class LatticeParticleMethod:
         ----------
 
         current_stresses : [(N_x N_y) x 1] array
-            Local stresses for the current time-step. To compute these, use `self.stress_truncated_rankine()`.
+            Local stresses for the current time-step. To compute these, use :meth:`self.stress_truncated_rankine() <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod.stress_truncated_rankine>`.
         
         max_stresses : [(N_x N_y) x 1] array
             Array of maximum stresses for each particle from any time : [0, t - 1]. 
@@ -1229,7 +1229,7 @@ class LatticeParticleMethod:
                 total_time = 1000, at_every = 100, save_states = False
                 ):
         """
-        Compute the Homogenized Stiffness matrix in Cartesian space for the `tostada.PhaseDistribution` for a given young's modulus, poisson ratio and mass density. Only relevant if the system obeys periodic boundaries.
+        Compute the Homogenized Stiffness matrix in Cartesian space for the :class:`tostada.PhaseDistribution <tostada.PhaseDistribution.PhaseDistribution>` for a given young's modulus, poisson ratio and mass density. Only relevant if the system obeys periodic boundaries.
         Since this module is only in 2D currently, only three quasi-static tests are needed to extract the 3x3 homogenized stiffness matrix: i) uniaxial x-loading ii) uniaxial y-loading and iii) shear loading
         For each tests, mean stress and strain components are computed. A system of linear equations is then solved to obtain a homogenized stiffness matrix.
 
@@ -1267,7 +1267,7 @@ class LatticeParticleMethod:
             Frequency of recording the fields in time. 
 
         save_states : bool
-            Should the `LatticeParticleMethod` states be saved for post-processing or not. Default : None
+            Should the :class:`LatticeParticleMethod <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod>` states be saved for post-processing or not. Default : None
 
         Returns
         -------
@@ -1364,10 +1364,19 @@ class homogenization_results:
     effective_stiffness_voigt : ndarray
         Effective stiffness matrix in the voigt notation (3x3 array in 2D). Can be obtained from a homogenization procedure.
 
-    xload_state, yload_state, xyload_state : tostada.LatticeParticleMethod object
+    xload_state : tostada.LatticeParticleMethod object
         Only for convenience for tracking the phase distribution and local field distributions.
 
-    sigma_h, eps_h : ndarray
+    yload_state : tostada.LatticeParticleMethod object
+        Only for convenience for tracking the phase distribution and local field distributions.
+
+    xyload_state : tostada.LatticeParticleMethod object
+        Only for convenience for tracking the phase distribution and local field distributions.
+
+    sigma_h : ndarray
+        Homogenized stress and strain tensors in voigt notation (3x3 array in 2D). Can be ignored.
+
+    eps_h : ndarray
         Homogenized stress and strain tensors in voigt notation (3x3 array in 2D). Can be ignored.
 
     """

@@ -203,7 +203,7 @@ class ColourSystem:
             Spectrum with zeroth column as the wavelength and first column as the spectra. 
             NOTE : Wavelength must be in microns by default
 
-        Illumination : [Nx2] Ndarray
+        illumination : [Nx2] Ndarray
             Illumination of the source with zeroth column as the wavelength and first column as the spectra.
         
         microns : Bool
@@ -242,7 +242,7 @@ class ColourSystem:
                     out_fmt=None,microns=True, gamma_correction=True):
         """
         
-        Convert a spectrum to an rgb value. The resulting values can be visualized into a color using `tostada.Visualize` module.
+        Convert a spectrum to an rgb value. The resulting values can be visualized into a color using :class:`tostada.Visualize <tostada.plot_util.Visualize>` module.
 
         """
 
@@ -254,7 +254,7 @@ class ColourSystem:
     
     def XYZ_to_RGB(self,XYZ,gamma_correction=False):
         """
-        Converts the tristimulus values to rgb values. To obtain the XYZ from a spectrum, use `spectrum_to_XYZ`.
+        Converts the tristimulus values to rgb values. To obtain the XYZ from a spectrum, use :meth:`spectrum_to_XYZ <tostada.color_system.ColourSystem.spectrum_to_XYZ>`.
         """
         rgb = self.T @ XYZ #rgb without gamma-correction values
         if (gamma_correction==True):

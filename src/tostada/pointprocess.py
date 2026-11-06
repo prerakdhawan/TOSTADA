@@ -8,10 +8,35 @@ from scipy.stats import binned_statistic,norm,cauchy,halfnorm
 
 class Pointprocess:
     """
+    TODO: Verify Docstrings
+
     Create a definition of a point process for a size, point-spacing (pitch or mean interparticle distance) in 2D/3D. 
     This can be used to create common poing distributions (tostada.PointDistribution) like perturbed square
     or hexagonal lattices or Monte-Carlo type processes (Random-Sequential Adsorption or soft- and hard-core Matern type III).
-    
+
+    Parameters
+    ----------
+    BoxSize : float | list
+        Size of the computational domain along each axes as [Lx,Ly,Lz]. If `BoxSize` is scalar `self.BoxSize` will be set to [Lx, Lx, Lx]
+    diameter : 
+        Diameter of each particle
+    ax : float
+        Particle distance along x axis
+    ay : float, optional
+        Particle distance along y axis. Default : ax
+    az : float, optional
+        Particle distance along z axis. Default : ax
+    is_3d : bool, optional
+        If True, Lz = 0 of `self.BoxSize`. Default : False
+
+    Attributes
+    ----------
+    ndim : int
+        Number of dimensions (2 or 3).
+    particle_density : float
+        Particle density in the box
+    estimated_particles : int
+        Estimated particles in the box given by particle density :math:`\cdot` box volume 
     """
     def __init__(self, BoxSize, diameter, ax, ay=None,az=None,is_3D=False):
         self.ax = ax
@@ -67,8 +92,7 @@ class Pointprocess:
         
         Returns
         --------
-
-        tostada.PointDistribution 
+        PointDistribution  : PointDistribution 
             
         """
         if seed is not None:
@@ -219,22 +243,18 @@ class Pointprocess:
         Create a fourier-dual of a one-component plasma point distribution with periodic boundaries such that its structure factor is given by S(q) = 1 - exp(-(aq)/pi). 
         Such a distribution is class II hyperuniform (alpha=1). For reference, refer https://doi.org/10.1063/5.0189769.
 
+        Parameters
+        ----------
+        **kwargs
+            - **qmax** (`float, optional`): Maximum value in the reciprocal space until which the structure factor is computed.
+              Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+              Default : 2pi / (diameter/2)
+            - **tol** (`float, optional`): Tolerance for the optimizer
+            - **maxiter** (`int, optional`): Maximum number of iterations for the optimizer
+
         Returns
         -------
-
-        tostada.PointDistribution object
-
-        kwargs
-        ------
-        qmax : float
-            Maximum value in the reciprocal space until which the structure factor is computed. 
-            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
-            Default : 2pi / (diameter/2)   
-
-        tol : float
-            Tolerance for the optimizer
-        maxiter : int
-            Maximum number of iterations for the optimizer
+        PointDistribution : PointDistribution
 
         """
         qmin = 2*np.pi/(self.BoxSize[0])
@@ -257,22 +277,18 @@ class Pointprocess:
         Create a Ginibre point distribution with periodic boundaries such that its structure factor is given by S(q) = 1 - exp(-(aq)^2/4pi). 
         Such a distribution is class I hyperuniform (alpha=2). For reference, refer https://doi.org/10.1063/5.0189769.
 
+        Parameters
+        ----------
+        **kwargs
+            - **qmax** (`float, optional`): Maximum value in the reciprocal space until which the structure factor is computed.
+              Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+              Default : 2pi / (diameter/2)
+            - **tol** (`float, optional`): Tolerance for the optimizer
+            - **maxiter** (`int, optional`): Maximum number of iterations for the optimizer
+
         Returns
         -------
-
-        tostada.PointDistribution object
-
-        kwargs
-        ------
-        qmax : float
-            Maximum value in the reciprocal space until which the structure factor is computed. 
-            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
-            Default : 2pi / (diameter/2)   
-
-        tol : float
-            Tolerance for the optimizer
-        maxiter : int
-            Maximum number of iterations for the optimizer
+        PointDistribution : PointDistribution
 
         """
         qmin = 2*np.pi/(self.BoxSize[0])
@@ -295,23 +311,19 @@ class Pointprocess:
         Create a anti-hyperuniform point distribution such that its structure factor is given by S(q) = 1 + 1/q. 
         Such a distribution is anti-hyperuniform (alpha < 0). 
 
+        Parameters
+        ----------
+        **kwargs
+            - **qmax** (`float, optional`): Maximum value in the reciprocal space until which the structure factor is computed.
+              Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+              Default : 2pi / (diameter/2)
+            - **tol** (`float, optional`): Tolerance for the optimizer
+            - **maxiter** (`int, optional`): Maximum number of iterations for the optimizer
+
         Returns
         -------
+        PointDistribution : PointDistribution
 
-        tostada.PointDistribution object
-
-        kwargs
-        ------
-        qmax : float
-            Maximum value in the reciprocal space until which the structure factor is computed. 
-            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
-            Default : 2pi / (diameter/2)   
-
-        tol : float
-            Tolerance for the optimizer
-
-        maxiter : int
-            Maximum number of iterations for the optimizer    
         """
         qmin = 2*np.pi/(self.BoxSize[0])
         q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
@@ -333,23 +345,19 @@ class Pointprocess:
         Create a hermite gaussian point distribution with periodic boundaries such that its structure factor is given by S(q) = 1 - v(q) * exp(-q^2/2). 
         Such a distribution is non-hyperuniform (alpha = 0). For reference, refer https://doi.org/10.1063/5.0189769.
 
+        Parameters
+        ----------
+        **kwargs
+            - **qmax** (`float, optional`): Maximum value in the reciprocal space until which the structure factor is computed.
+              Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
+              Default : 2pi / (diameter/2)
+            - **tol** (`float, optional`): Tolerance for the optimizer
+            - **maxiter** (`int, optional`): Maximum number of iterations for the optimizer
+
         Returns
         -------
+        PointDistribution : PointDistribution
 
-        tostada.PointDistribution object
-
-        kwargs
-        ------
-        qmax : float
-            Maximum value in the reciprocal space until which the structure factor is computed. 
-            Note : since pair-correlations are evaluated using structure factor, larger this value, better resolution in pair correlation (dr = 2pi/qmax).
-            Default : 2pi / (diameter/2)   
-
-        tol : float
-            Tolerance for the optimizer
-
-        maxiter : int
-            Maximum number of iterations for the optimizer    
         """
         qmin = 2*np.pi/(self.BoxSize[0])
         q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
@@ -371,6 +379,8 @@ class Pointprocess:
         Create a point distribution with periodic boundaries for a prescribed structure factor. Uses tostada.Optimization for gradient-based optimization.
         Such a distribution is class I hyperuniform.
 
+        Parameters
+        ----------
         target : ndarray
             reciprocal space target. Can be angular-averaged [q, Sq] array or [q_x , q_y, Sq] array.
 
@@ -382,14 +392,13 @@ class Pointprocess:
         q_f : float
             Maximum reciprocal space vector until which the structure factor is optimized against a target or simply minimized (S=0). 
 
-        kwargs
-        ------
+        **kwargs
+            - **tol** (`float, optional`): Tolerance for the optimizer
+            - **maxiter** (`int, optional`): Maximum number of iterations for the optimizer
 
-        tol : float
-            Tolerance for the optimizer
-        maxiter : int
-            Maximum number of iterations for the optimizer
-
+        Returns
+        -------
+        PointDistribution : PointDistribution
         """
         q_f =  2*np.pi / (self.ax) if q_f is None else q_f 
         D0 = self.diameter if self.diameter != 0 else self.ax/2
@@ -430,8 +439,7 @@ class Pointprocess:
 
         Returns
         -------
-
-        pointconfig : tostada.PointDistribution object
+        PointDistribution : PointDistribution
         """
         D0 = self.diameter if D0 is None else D0
 

@@ -229,9 +229,9 @@ class Visualize:
     def plot_colors(color_array, ax=None,transpose=True,extent=None):
         """
         Plot colors from given R,G,B values. Can be used for plotting:
-            i) A single R,G,B (essentially color for a single scattering angle).
-            ii) A set of R,G,B values for a set of scattering-angles (theta,phi). 
-        TO OBTAIN THE DATASET FOR (ii), USE `colorize_spectra()` in `color_systems`.
+        - i) A single R,G,B (essentially color for a single scattering angle).
+        - ii) A set of R,G,B values for a set of scattering-angles (theta,phi). 
+        TO OBTAIN THE DATASET FOR (ii), USE :meth:`colorize_spectra() <tostada.color_system.ColourSystem.colorize_spectra>` in `color_systems`.
         
         Parameters
         ----------
@@ -243,8 +243,6 @@ class Visualize:
         
         transpose : bool, optional
             Transposing of color_array. 
-        
-
         """
         if ax is None:
             fig, ax = plt.subplots(figsize=(7, 7))
@@ -256,8 +254,8 @@ class Visualize:
 
     @staticmethod
     def plot_polar(I_array, wvl_0,wvl_f,ax=None,vmax=None,cmap=None):
-        """
-        Plot polar scattering data I(\\theta,\\lambda). Can be used for plotting:
+        r"""
+        Plot polar scattering data :math:`I(\theta,\lambda)`. Can be used for plotting:
             i) Angular-averaged Structure Factor as a function of wavelength and angle.
             ii) Angular-averaged form-factor (single object scattering) as a function of wavelength and angle.
             iii) Angle-resolved scattering from simulations or experiments
@@ -291,8 +289,8 @@ class Visualize:
     
     def plot_detected_polygons(self,smax=6,ax=None,skipind=2,**kwargs):
         """
-        Plots the detected polygons from `Morphology`. 
-        If not created already, it creates the Morphology object either trivially (if a `PhaseDistribution`) or 
+        Plots the detected polygons from :class:`~tostada.Statistics.Morphology`. 
+        If not created already, it creates the Morphology object either trivially (if a :class:`~tostada.PhaseDistribution.PhaseDistribution`) or 
         non-trivially by mapping the points to a phase distribution using available conversion methods.
 
         Parameters
@@ -336,7 +334,7 @@ class Visualize:
 
     def plot_structure_metric(self, s=6, plot_data = None, smax=6, orientations=False,ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
         """
-        Plots the kth structure metric for each detected polygon from `Morphology`. These can be obtained using `structure_metrics()`. 
+        Plots the kth structure metric for each detected polygon from :class:`~tostada.Statistics.Morphology`. These can be obtained using :meth:`structure_metrics() <tostada.Statistics.Morphology.structure_metrics>`. 
         
         Parameters
         ----------
@@ -404,7 +402,7 @@ class Visualize:
                     cmap='turbo', vmax=None, vmin=None,
                     field=['sigxx','sigxy','sigyy','sigvm','sigp1','sigp2', 'epsxx', 'epsxy','epsyy','u','v'],damage_history=None,**kwargs):
         """
-        Plots the stress/strain or displacements derived from `tostada.Physics.LatticeParticleMethod`. 
+        Plots the stress/strain or displacements derived from :class:`tostada.Physics.LatticeParticleMethod <tostada.physics.Lattice_Particle_Method_gpu.LatticeParticleMethod>`. 
         
         Parameters
         ----------

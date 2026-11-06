@@ -3,19 +3,24 @@ import numpy as np
 from scipy.stats import binned_statistic
 from scipy.ndimage import zoom
 class Postprocess_fields:
+    """
+    Post-processes the meep DFT fields for diffraction efficiencies. 
+    Uses electric field components for source probe and detector probe (either reflected or transmitted).
+
+    Parameters
+    ----------
+    file : h5py.File
+        File containing output from meep simulation
+
+    Attributes
+    ----------
+    wavelength : ndarray
+        Wavelength array in microns
+    resolution : float
+        Meep resolution in 1/microns
+    """
     def __init__(self, file, is_3D=True):
-        """
-        Post-processes the meep DFT fields for diffraction efficiencies. 
-        Uses electric field components for source probe and detector probe (either reflected or transmitted).
-    
-        Parameters:
-        file:
-            File containing output from meep simulation
-        wavelength: 
-            Wavelength array in microns
-        resolution:
-            Meep resolution in 1/microns
-        """
+        
         self.file = file
         self.wavelength = file.attrs['wvl']
         #self.resolution = file.attrs['res']
@@ -109,6 +114,9 @@ class Postprocess_fields:
     def theta_mask(self,theta_array,theta_lim):
         """
         Mask for extracting diffraction efficiencies for particular angles.
+
+        Parameters
+        ----------
         theta_lim : list
             list of upper and lower limit for angles *in radians*
         """
@@ -277,7 +285,9 @@ class Postprocess_fields:
         """
         Returns the transmitted diffraction in specular,diffused,helicity decomposed components for N wavelengths.
         Also extrapolates absorbance in a finite Absorber of thickness 'th' micrometers.
-        Inputs:
+
+        Parameters
+        ----------
             n_in : float or nd.array
                 Refractive index of the source medium. Can be constant or a dispersive media
             n_out : float or nd.array
@@ -289,7 +299,8 @@ class Postprocess_fields:
             th   : scalar : 
                 thickness (in micrometer) of the cSi for which the absorbance is needed.
         
-        Returns:
+        Returns
+        -------
             spec : array of size N x 1 : specular reflectance
             diff : array of size N x 1 : diffused reflectance
             refl : array of size N x 1 : total reflectance (sum of specular and diffused [also equals sum of both helicity components])
@@ -392,22 +403,24 @@ class Postprocess_fields:
 
 
 class Save_meepfields:
-    def __init__(self, filename,wvl,res,Lx,Ly=None):
-        """
-        Creates the dataset with .h5 format for postprocessing meep dft fields.
+    """
+    Class to save a dataset with .h5 format for postprocessing meep dft fiels in a file.
 
-        Inputs:
-        filename : string
-            Name of the file
-        wvl : ndarray
-            Wavelength array (in microns)
-        res : int or float
-            Meep resolution in 1/microns
-        Lx : float
-            Length of the simulation domain (in microns) along x-direction
-        Ly : float
-            Length of the simulation domain (in microns) along y-direction. If None, assumes 2D simulation
-        """
+    Parameters
+    ----------
+    filename : string
+        Name of the file
+    wvl : ndarray
+        Wavelength array (in microns)
+    res : int or float
+        Meep resolution in 1/microns
+    Lx : float
+        Length of the simulation domain (in microns) along x-direction
+    Ly : float
+        Length of the simulation domain (in microns) along y-direction. If None, assumes 2D simulation
+    """
+    def __init__(self, filename,wvl,res,Lx,Ly=None):
+        
         self.file = filename
         self.wavelength = wvl
         self.resolution = res
@@ -418,9 +431,8 @@ class Save_meepfields:
         """
         Creates the dataset with .h5 format for postprocessing meep dft fields.
 
-        Inputs:
-        filename : string
-            Name of the file
+        Parameters
+        ----------
         ex_src : ndarray
             Ex fields of the source
         ey_src : ndarray

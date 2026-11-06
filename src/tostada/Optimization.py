@@ -56,17 +56,10 @@ class Optimization:
             Positions that need to be considered for objective function (and gradients) but that are fixed during optimization. Default : None
         mask_mode : bool, optional
             Shape of the ROI in the reciprocal space. Currently allowed inputs are 'radial' and 'square'. Default : 'radial'
-
-        kwargs
-        ------
-        q_f2 : float, optional
-            q_f along the y direction. 
-        
-        g_trend : str, optional
-            Trends for pair-correlation weights. Possible inputs: 'linear' (1-r/D) and 'exp' (exp(-r/D)^2)
-        
-        s_trend : str, optional
-            Trends for structure factor weights. Possible inputs: 'hard' (hard mask for S(q_i<q<q_f)) and 'soft' (soft mask for S(q_i<q<q_f))
+        **kwargs
+            - **q_f2** (`float, optional`): q_f along the y direction.
+            - **g_trend** (`str, optional`): Trends for pair-correlation weights. Possible inputs: 'linear' (1-r/D) and 'exp' (exp(-r/D)^2)
+            - **s_trend** (`str, optional`): Trends for structure factor weights. Possible inputs: 'hard' (hard mask for S(q_i<q<q_f)) and 'soft' (soft mask for S(q_i<q<q_f))
         """
         inputs = self.init_positions.flatten() if positions is None else positions.flatten()
         D0 = self.D0 if D0 is None else D0
@@ -256,8 +249,8 @@ class Optimization:
         return grad_approx
 
     def interpolate_Target1D(self,Sq_target,**kwargs):
-        """
-        Interpolate the 1D target function to a 2D grid. Assumes isotropy in reciprocal space. The 2D grid has resolution of 2\\pi/ PointDistribution.BoxSize
+        r"""
+        Interpolate the 1D target function to a 2D grid. Assumes isotropy in reciprocal space. The 2D grid has resolution of :math:`\frac{2 \pi}{\text{PointDistribution.BoxSize}}`
         
         Parameters
         ----------
