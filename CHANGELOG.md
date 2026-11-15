@@ -1,4 +1,6 @@
 # Changelog
+## 0.5.1 - 2026-11-15
+- Modified expressions for structure factor, pair correlation and their subsequent metrics for complex weights
 
 ## 0.5.0 - 2026-11-15
 - Added Phase Optimization module for 2D/3D reciprocal space optimizations.

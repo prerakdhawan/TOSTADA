@@ -334,7 +334,7 @@ class Visualize:
         return ax
 
 
-    def plot_structure_metric(self, s=6, plot_data = None, smax=6, orientations=False,ax=None, cmap='turbo', edge_kwargs=None, skipind=2,**kwargs):
+    def plot_structure_metric(self, s=6, plot_data = None, smax=6, orientations=False,ax=None, cmap='turbo', edge_kwargs=None, skipind=2,skipindices=[],**kwargs):
         """
         Plots the kth structure metric for each detected polygon from `Morphology`. These can be obtained using `structure_metrics()`. 
         
@@ -382,14 +382,16 @@ class Visualize:
         vmax = kwargs.get('vmax',1) if plot_data is None else kwargs.get('vmax',np.max(plot_data))
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
 
-        colormap = plt.get_cmap(cmap)
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        colormap = plt.get_cmap(cmap,kwargs.get('n_colors',20))
+        sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)
         sm.set_array([])
-        for poly_coords, val in zip(mor.polygons[skipind:], values[skipind:]):
+        for i,(poly_coords, val) in enumerate(zip(mor.polygons[skipind:], values[skipind:])):
             patch = Patch.Polygon(poly_coords.reshape(-1,2), closed=True,
                                 facecolor=colormap(norm(val)),
                                 **edge_kwargs
                                 )
+            if (i in skipindices):
+                continue
             im = ax.add_patch(patch)
 
         ax.autoscale()

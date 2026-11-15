@@ -43,7 +43,7 @@ class PointDistribution:
     BoxSize : list
         Size of the computational domain along each axes as [Lx,Ly,Lz]. If Lz=0, assumes a 2D instance.
     """
-    def __init__(self, positions, diameter, BoxSize):
+    def __init__(self, positions, diameter, BoxSize, weights=None):
         self.positions = positions
         if (self.positions.shape[1]==2):
             self.positions = np.hstack([self.positions,np.zeros(self.positions.shape[0])[:,None]])
@@ -61,6 +61,11 @@ class PointDistribution:
         self.totalparticles = self.positions.shape[0]
         self.particledensity = self.totalparticles / (self.BoxSize[0]*self.BoxSize[1]*self.BoxSize[2]**self.is_3D)  
         self.dmean = 1/np.power(self.particledensity,1/self.ndim) #mean inter-particle distance
+        self.weights = weights 
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.__dict__.setdefault("weights", None)
 
     def build_tree(self, is_periodic=True, z_periodicity = False):
         """
@@ -111,7 +116,7 @@ class PointDistribution:
     def ReciprocalSpace(self,kmax,dkx=None,**kwargs):
         dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         """
-        Computes the reciprocal space response of the given point-distribution. For details, refer to Sk_jax_custom.
+        Computes the reciprocal space response of the given weighted/un-weighted point-distribution. For details, refer to Sk_jax_custom.
         Identical to ReciprocalSpace in PhaseDistribution. 
 
         Parameters
@@ -205,7 +210,17 @@ class PointDistribution:
         dkx=2*np.pi/self.BoxSize[0] if dkx==None else dkx
         Sq = self.ReciprocalSpace(kmax,dkx)
         q_threshold = np.nanmax(self.Sq_averaged[:,0]) if q_threshold is None else q_threshold
-        tau = stats.tau(self.Sq_averaged,spectrum_type='sq',pad=pad,dim=self.ndim,q_max = q_threshold, pre_factor=pre_factor, rho = self.particledensity)
+        #weights = np.ones(self.totalparticles)[:,None] if self.weights is None else np.array(self.weights)[:,None]
+        if self.weights is None:  
+            weights_re = np.ones((self.totalparticles, 1), dtype=np.float32)  
+            weights_im = np.zeros((self.totalparticles, 1), dtype=np.float32)
+        else:
+            _w  = np.asarray(self.weights) 
+            weights_re = np.real(_w).astype(np.float32)[:, None]  
+            weights_im = np.imag(_w).astype(np.float32)[:, None] 
+        weights_term = float(np.mean(weights_re**2 + weights_im**2))
+        #weights_term = np.mean(weights**2)
+        tau = stats.tau(self.Sq_averaged,spectrum_type='sq',pad=pad,dim=self.ndim,q_max = q_threshold, pre_factor=pre_factor, rho = self.particledensity,weights_term = weights_term)
         return tau
     
     def Dmean_from_q(self,factor=np.sqrt(3)/2,kmax=100):
@@ -447,7 +462,7 @@ class PointDistribution:
 
     def Sk_jax_custom(self,kmax,custom_pos=None,dkx=None,dky=None,dkz=None,k_vecs=None,batch_size_fac=30):
         """
-        Compute the Structure Factor of the point-distribution in 2D or 3D using Hermitian Symmetry. Also CUDA enabled for 3D point-distributions. 
+        Compute the weighted/un-weighted structure Factor of the point-distribution in 2D or 3D using Hermitian Symmetry. Also CUDA enabled for 3D point-distributions. 
         For optimizations, use gradients of this function.
 
         Parameters
@@ -466,6 +481,15 @@ class PointDistribution:
             Meshgrid of k vectors [KX,KY,KZ] for the tensor product. If None, constructs KX,KY,KZ from dkx,dky,dkz. Note: Overrules kmax and dkx
         """
         custom_pos = custom_pos if custom_pos is not None else self.positions
+        #weights = jnp.ones(custom_pos.shape[0])[:,None] if self.weights is None else jnp.array(self.weights)[:,None]
+        if self.weights is None:                                                  
+            weights_re = jnp.ones((custom_pos.shape[0], 1), dtype=jnp.float32)          
+            weights_im = jnp.zeros((custom_pos.shape[0], 1), dtype=jnp.float32) 
+        else:   
+            _w  = jnp.asarray(self.weights)
+            weights_re = jnp.real(_w).astype(jnp.float32)[:, None] 
+            weights_im = jnp.imag(_w).astype(jnp.float32)[:, None] 
+        self._complex_w = bool(jnp.any(jnp.abs(weights_im) > 0))
         if dkx is None:
             dkx = 2 * jnp.pi / self.BoxSize[0]
             dky = 2 * jnp.pi / self.BoxSize[1]
@@ -479,6 +503,10 @@ class PointDistribution:
         nkz = int(round(self.is_3D*kmax / dkz))#,dtype=jnp.int32)
 
         kx1d = jnp.arange(0, (nkx + 0.5) * dkx, dkx, dtype=jnp.float32)
+        if self._complex_w:  
+            kx1d_2 = jnp.arange(-nkx * dkx, -dkx + 0.5 * dkx, dkx,  
+                                dtype=jnp.float32) 
+            kx1d = jnp.concatenate([kx1d_2, kx1d], axis=0)
         #kx1d_2 = np.arange(-nkx * dkx, -dkx + 0.5 * dkx, dkx, dtype=np.float32)
         #kx1d = np.concatenate([kx1d_2, kx1d_1], axis=0)
         ky1d = jnp.arange(0, (nky + 0.5) * dky, dky, dtype=jnp.float32)
@@ -512,14 +540,15 @@ class PointDistribution:
             KZ_chunk = KZ[i:i+batch_size]
             # Compute arg = x*KX + y*KY + z*KZ
             arg_chunk = jnp.outer(x, KX_chunk) + jnp.outer(y, KY_chunk) + jnp.outer(z, KZ_chunk)
-            cosi = jnp.sum(jnp.cos(arg_chunk), axis=0)
-            sinu = jnp.sum(jnp.sin(arg_chunk), axis=0)
+            cosi = jnp.sum(weights_re*jnp.cos(arg_chunk) - weights_im * jnp.sin(arg_chunk), axis=0)
+            sinu = jnp.sum(weights_re*jnp.sin(arg_chunk) + weights_im * jnp.cos(arg_chunk), axis=0)
             Sk_chunk = (cosi**2 + sinu**2) / custom_pos.shape[0] #self.totalparticles
             Sk_chunks.append(Sk_chunk)
         Sk_flat = jnp.concatenate(Sk_chunks)
         S = Sk_flat.reshape(data[0].shape)
         Sdata = jnp.concatenate((data, S[None,:,:]), axis=0)
-        Sdata = self.Hermitiansymmetry(Sdata)
+        if not self._complex_w:
+            Sdata = self.Hermitiansymmetry(Sdata)
         #print (Sdata.devices())
         return Sdata
     
@@ -597,8 +626,7 @@ class PointDistribution:
 
     def Pair_correlation(self,custom_pos=None, r_max=None, dr=None,custom_bins=None):
         """
-        Two-point correlation function G_2(r) for the point-distribution in 2D/3D. Uses Nd-histogram and hence non-differentiable. 
-        For differentiability, either use Kernel-Density-Estimation or the StructureFactor (FFT) implementation. 
+        Two-point correlation function G_2(r) for the weighted/un-weighted point-distribution in 2D/3D. Uses Nd-histogram and hence non-differentiable. 
         
         Parameters
         ----------
@@ -618,6 +646,14 @@ class PointDistribution:
             dr = r_max / 100  
 
         custom_pos = custom_pos if custom_pos is not None else self.positions
+        if self.weights is None:                                                  
+            pair_weights = None
+            mean_sq = 0
+            
+        else:   
+            _w  = jnp.asarray(self.weights)
+            pair_weights  = jnp.real(jnp.conj(_w[:,None]) * _w[:,None]).reshape(-1) #!Assumes isotropy!
+            mean_sq = float(jnp.abs(jnp.mean(_w)) ** 2)
 
         # Calculate histogram bin edges for pair distances
         bins2 = jnp.arange(dr, r_max / 2 + dr, dr)
@@ -630,12 +666,13 @@ class PointDistribution:
         
         _bins = custom_bins if custom_bins is not None else bins2
         #Vol = ((jnp.max(_bins) - jnp.min(_bins))/2)**2
-        Data = jnp.histogramdd(delta[:, :self.ndim], bins=[_bins]*self.ndim)
+        Data = jnp.histogramdd(delta[:, :self.ndim], bins=[_bins]*self.ndim, weights=pair_weights)
         axes = [e[:-1] for e in Data[1]]
         # Calculate two-point correlation function grid
         Grid = jnp.array(jnp.meshgrid(*axes))
         denom = self.totalparticles*self.particledensity * jnp.power(dr,self.ndim)
         G2data = jnp.concatenate((Grid,Data[0][None,:,:]/denom ), axis=0) 
+        G2data = G2data.at[-1].add(-mean_sq)
         return G2data
 
     def pair_corr_Sq_jax(self,Sq=None,kmax=None):

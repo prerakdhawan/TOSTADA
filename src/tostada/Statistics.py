@@ -156,19 +156,21 @@ def tau(array, spectrum_type='Sq', pad=0 , dim = 2, q_max=None,pre_factor=1,**kw
     q_max_int = np.argmin(np.abs(array[:,0] - q_max)) if q_max is not None else -1
     q = array[pad:q_max_int,0]
     X = array[pad:q_max_int,1]
+    weights_term = kwargs.get('weights_term', 1.0)
+    f_ref = kwargs.get('f_ref', 1.0)
     if spectrum_type.lower() == "sq":
         rho = kwargs.get('rho',None)
         if rho is None:
             raise ValueError("rho must be provided when spectrum='Sq'.")
-        h_tilde = (X - 1.0) / rho
-        norm_prefactor = 1.0 / ((2.0 * np.pi) ** dim * (1/rho ** (1.0 / dim))**dim )
+        h_tilde = (X - weights_term) / rho
+        norm_prefactor = 1.0 / ((2.0 * np.pi) ** dim * (1/rho ** (1.0 / dim))**dim *f_ref**4 )
     elif spectrum_type.lower() == "xq":
         h_tilde = X
         norm_prefactor = 1.0
     omega_d = 2.0 * np.pi ** (dim / 2.0) / sps.gamma(dim / 2.0)
     integrand = (np.abs(h_tilde) ** 2) * (q ** (dim - 1))
     radial_integral = np.trapezoid(integrand, q)
-    q_integral = radial_integral / omega_d
+    q_integral = radial_integral * omega_d
     tau = pre_factor * norm_prefactor * q_integral
     return tau
     

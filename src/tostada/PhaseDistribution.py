@@ -408,7 +408,7 @@ class PhaseDistribution:
 
     def translational_order_metric(self,q_threshold=None,pad=0,**kwargs):
         """
-        Translational order metric for the given phase distribution. It quantifies "ordered-ness" in a system and vanishes for a poisson point process. For crystalline, poly-crystalline type processes, it diverges in the thermodynamic limit.
+        Un-normalized translational order metric for the given phase distribution. It quantifies "ordered-ness" in a system and vanishes for a poisson point process. For crystalline, poly-crystalline type processes, it diverges in the thermodynamic limit.
         \\tau = (1/(2pi D)^d)\\int^{\\infty}_0 |S(q)|^2 q^{d-1} dq
         Here, tau is computed using the angular-averaged spectral density and since the integration is from q \\in [0,\\infty], this metric is dependent on the largest `q_threshold` used in numerical integration. 
 
@@ -427,11 +427,11 @@ class PhaseDistribution:
             Translational order metric
 
         """
-        pre_factor = kwargs.get('pre_factor',1)
+        pre_factor = kwargs.get('pre_factor',self.resolution**self.ndim)
         if not hasattr(self, 'Xq_averaged'):
             Xq = self.ReciprocalSpace()
         q_threshold = np.nanmax(self.Xq_averaged[:,0]) if q_threshold is None else q_threshold
-        tau = stats.tau(self.Xq_averaged - (self.volumefraction * (1-self.volumefraction)),spectrum_type='xq',pad=pad,dim=self.ndim,q_max = q_threshold, pre_factor=pre_factor)
+        tau = stats.tau(self.Xq_averaged,spectrum_type='xq',pad=pad,dim=self.ndim,q_max = q_threshold, pre_factor=pre_factor)
         return tau
     
     def Dmean_from_q(self,factor=1,kmax=100):
