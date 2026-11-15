@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.0 - 2026-11-15
+- Added Phase Optimization module for 2D/3D reciprocal space optimizations.
+
 ## 0.4.1 - 2026-10-06
 - Added translational order metric for point and phase distributions.
 

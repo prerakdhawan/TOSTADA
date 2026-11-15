@@ -28,10 +28,9 @@ class Phaseprocess:
         self.BoxSize = BoxSize
         self.resolution = resolution
         if (np.asarray(BoxSize).shape == ()):
-            print ('Taking Lx,Ly,Lz=',BoxSize)
             self.BoxSize = [BoxSize]*(2*(np.logical_not(self.is_3D))+3*(self.is_3D))
 
-    def GRF_microstructure(self,params,options=['gaussian']):
+    def GRF_microstructure(self,params,options=['gaussian'],binarize=True):
         """
         Generate a porous media (tostada.PhaseDistribution object) using 2D/3D Excursion sets of Gaussian Random Fields (GRF). 
         Since GRFs are continuous, thresholding is done to get desired volume fraction using standard normal distribution.
@@ -50,7 +49,8 @@ class Phaseprocess:
         """
         correlation_length=self.interpore_distance
         image = grf.generate_grf(self.BoxSize,self.resolution,correlation_length,params,is_3D=self.is_3D,options=options)
-        image = np.where(image>-norm.ppf(self.volumefraction),1,0)
+        if (binarize):
+            image = np.where(image>-norm.ppf(self.volumefraction),1,0)
         return PhaseDistribution(image,self.resolution)
 
     def spinodal_decomposed_microstructure(self, D = 1, gamma=0.5, num_iter=5000, 
@@ -233,5 +233,41 @@ class Phaseprocess:
         
         """
         rng = np.random.default_rng()
-        img = rng.choice([0, 1], size=self.BoxSize, p=[1-self.volumefraction, self.volumefraction])
+        img = rng.choice([0, 1], size=np.int32(np.array(self.BoxSize)/self.resolution), p=[1-self.volumefraction, self.volumefraction])
         return PhaseDistribution(img,self.resolution)
+
+    def bandpass_microstructure(self, q0, dq=None, binarize=False):
+        """
+        Band-limited random phase field. Generates a gaussian distribution with mean and retains only the spectral features inside the input band.
+        
+        Parameters
+        ----------
+        q0 : float
+            Central reciprocal-space frequency inside the annulus
+        
+        dq : float
+            Width of the annulus in the reciprocal-space
+        
+        binarize : bool
+            Binarizes the field to the `volumefraction` of the process. Default : False
+        
+        Returns
+        -------
+        PhaseDistribution
+
+        """
+        p = 0.5 * (self.volumefraction - 0.5)
+        L = np.array(self.BoxSize)
+        shape = np.int32(L/self.resolution)
+        if dq is None:
+            dq = 0.15 * q0
+        qs   = [2*np.pi*np.fft.fftfreq(n, d=Li/n) for n, Li in zip(shape, L)]
+        Q    = np.meshgrid(*qs, indexing='ij')
+        qr   = np.sqrt(sum(qi**2 for qi in Q))
+        env  = np.exp(-((qr - q0)**2) / (2.0*dq**2))
+        fld  = np.real(np.fft.ifftn(np.fft.fftn( np.random.normal(p,1,shape) )*env))
+        r    = fld.ravel().argsort().argsort() 
+        image = ((r + self.volumefraction)/fld.size).reshape(shape)
+        if (binarize):
+            image = np.where(image>-norm.ppf(self.volumefraction),1,0)
+        return PhaseDistribution(image, self.resolution)
